@@ -8,12 +8,15 @@
 // Inclure raylib avant les autres headers pour éviter les conflits
 #include "raylib.h"
 #include "renderer.h"
+#include "raymath.h"
+#include "rlgl.h"
 
 // Autres includes après raylib
 #include "network.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include "chunk_mesh.h"
 
 // Définir NETWORK_IMPL après tous les autres includes
 #define NETWORK_IMPL
@@ -26,13 +29,9 @@
 #define WINDOWS_FACTOR 16/9
 #define WINDOWS_WIDTH 405
 
-typedef unsigned char BlockType;
+#define MAX_LOADED_CHUNKS 100
+#define CHUNK_LOAD_DISTANCE 3
 
-typedef struct {
-    BlockType blocks[CHUNK_SIZE][WORLD_HEIGHT][CHUNK_SIZE];
-    bool modified;
-    int x, z;  // Chunk coordinates
-} Chunk;
 
 typedef struct {
     Vector3 position;
@@ -42,11 +41,21 @@ typedef struct {
     int id;
 } Player;
 
+typedef struct {
+    ChunkData data;
+    ChunkMesh mesh;
+    bool loaded;
+} ClientChunk;
+
 // État réseau
 NetworkPlayer otherPlayers[MAX_PLAYERS] = {0};
 NetworkPlayer playerState = {0};
 rnetPeer* client = NULL;
 double lastNetworkUpdate = 0;
+
+// État du monde côté client
+ClientChunk loadedChunks[MAX_LOADED_CHUNKS];
+int loadedChunkCount = 0;
 
 // Fonctions de conversion
 static inline Vector3 Vec3ToVector3(Vec3 v) {
@@ -58,23 +67,148 @@ static inline Vec3 Vector3ToVec3(Vector3 v) {
 }
 
 // Fonction qui sera utilisée pour générer le terrain
-void generateChunk(Chunk *chunk, int chunkX, int chunkZ) {
+void generateChunk(ChunkData *chunk, int chunkX, int chunkZ) {
     chunk->x = chunkX;
     chunk->z = chunkZ;
-    chunk->modified = true;
     
     // Pour l'instant, générons un terrain plat simple
     for (int x = 0; x < CHUNK_SIZE; x++) {
         for (int z = 0; z < CHUNK_SIZE; z++) {
             for (int y = 0; y < WORLD_HEIGHT; y++) {
                 if (y < 64) {
-                    chunk->blocks[x][y][z] = 1; // Terre
+                    chunk->blocks[x][y][z] = BLOCK_DIRT;
                 } else {
-                    chunk->blocks[x][y][z] = 0; // Air
+                    chunk->blocks[x][y][z] = BLOCK_AIR;
                 }
             }
         }
     }
+}
+
+// Trouver un chunk chargé
+static ClientChunk* findChunk(int x, int z) {
+    for (int i = 0; i < loadedChunkCount; i++) {
+        if (loadedChunks[i].loaded && loadedChunks[i].data.x == x && loadedChunks[i].data.z == z) {
+            return &loadedChunks[i];
+        }
+    }
+    return NULL;
+}
+
+// Demander un chunk au serveur
+static void requestChunk(int x, int z) {
+    Packet packet = {
+        .type = PACKET_CHUNK_REQUEST,
+        .chunkX = x,
+        .chunkZ = z
+    };
+    rnetSend(client, &packet, sizeof(Packet), RNET_RELIABLE);
+}
+
+static void unloadDistantChunks(Vector3 playerPos) {
+    int playerChunkX = (int)floor(playerPos.x) / CHUNK_SIZE;
+    int playerChunkZ = (int)floor(playerPos.z) / CHUNK_SIZE;
+    
+    for (int i = 0; i < loadedChunkCount; i++) {
+        if (!loadedChunks[i].loaded) continue;
+        
+        int dx = abs(loadedChunks[i].data.x - playerChunkX);
+        int dz = abs(loadedChunks[i].data.z - playerChunkZ);
+        
+        if (dx > CHUNK_LOAD_DISTANCE + 2 || dz > CHUNK_LOAD_DISTANCE + 2) {
+            // Libérer les ressources du chunk
+            freeChunkMesh(&loadedChunks[i].mesh);
+            loadedChunks[i].loaded = false;
+        }
+    }
+}
+
+// Fonction pour charger/décharger les chunks autour du joueur
+static void updateLoadedChunks(Vector3 playerPos) {
+    // D'abord décharger les chunks trop éloignés
+    unloadDistantChunks(playerPos);
+    
+    int playerChunkX = (int)floor(playerPos.x) / CHUNK_SIZE;
+    int playerChunkZ = (int)floor(playerPos.z) / CHUNK_SIZE;
+    
+    // Demander les chunks manquants autour du joueur
+    for (int x = -CHUNK_LOAD_DISTANCE; x <= CHUNK_LOAD_DISTANCE; x++) {
+        for (int z = -CHUNK_LOAD_DISTANCE; z <= CHUNK_LOAD_DISTANCE; z++) {
+            int chunkX = playerChunkX + x;
+            int chunkZ = playerChunkZ + z;
+            
+            if (!findChunk(chunkX, chunkZ) && loadedChunkCount < MAX_LOADED_CHUNKS) {
+                requestChunk(chunkX, chunkZ);
+            }
+        }
+    }
+}
+
+// Ajouter un nouveau chunk aux chunks chargés
+static void addChunk(ChunkData* chunk) {
+    // Si le chunk existe déjà, le mettre à jour
+    ClientChunk* existing = findChunk(chunk->x, chunk->z);
+    if (existing) {
+        existing->data = *chunk;
+        existing->mesh.dirty = true;
+        existing->loaded = true;
+        return;
+    }
+    
+    // Sinon, ajouter un nouveau chunk
+    if (loadedChunkCount < MAX_LOADED_CHUNKS) {
+        loadedChunks[loadedChunkCount].data = *chunk;
+        loadedChunks[loadedChunkCount].loaded = true;
+        memset(&loadedChunks[loadedChunkCount].mesh, 0, sizeof(ChunkMesh));
+        loadedChunks[loadedChunkCount].mesh.dirty = true;
+        loadedChunkCount++;
+    }
+}
+
+// Fonction pour convertir des coordonnées monde en coordonnées de bloc
+static bool worldToBlockCoords(Vector3 worldPos, Vector3 direction, float maxDist, int* outX, int* outY, int* outZ) {
+    float stepSize = 0.1f;
+    Vector3 pos = worldPos;
+    
+    for (float dist = 0; dist < maxDist; dist += stepSize) {
+        pos.x = worldPos.x + direction.x * dist;
+        pos.y = worldPos.y + direction.y * dist;
+        pos.z = worldPos.z + direction.z * dist;
+        
+        int x = (int)floor(pos.x);
+        int y = (int)floor(pos.y);
+        int z = (int)floor(pos.z);
+        
+        // Trouver le chunk qui contient ce block
+        int chunkX = x / CHUNK_SIZE;
+        int chunkZ = z / CHUNK_SIZE;
+        
+        // Coordonnées relatives au chunk
+        int localX = x % CHUNK_SIZE;
+        int localZ = z % CHUNK_SIZE;
+        
+        if (localX < 0) {
+            localX += CHUNK_SIZE;
+            chunkX--;
+        }
+        if (localZ < 0) {
+            localZ += CHUNK_SIZE;
+            chunkZ--;
+        }
+        
+        ClientChunk* chunk = findChunk(chunkX, chunkZ);
+        if (chunk) {
+            if (y >= 0 && y < WORLD_HEIGHT && 
+                chunk->data.blocks[localX][y][localZ] != BLOCK_AIR) {
+                *outX = x;
+                *outY = y;
+                *outZ = z;
+                return true;
+            }
+        }
+    }
+    
+    return false;
 }
 
 void updateNetworkState(Player* player) {
@@ -137,6 +271,33 @@ void updateNetworkState(Player* player) {
             case PACKET_WORLD_STATE:
                 // Pour l'instant, on ignore les mises à jour du monde
                 break;
+
+            case PACKET_CHUNK_DATA:
+                addChunk(&gamePacket->chunk);
+                break;
+            
+            case PACKET_BLOCK_UPDATE: {
+                BlockUpdate* update = &gamePacket->blockUpdate;
+                int chunkX = update->x / CHUNK_SIZE;
+                int chunkZ = update->z / CHUNK_SIZE;
+                int localX = update->x % CHUNK_SIZE;
+                int localZ = update->z % CHUNK_SIZE;
+                
+                if (localX < 0) {
+                    localX += CHUNK_SIZE;
+                    chunkX--;
+                }
+                if (localZ < 0) {
+                    localZ += CHUNK_SIZE;
+                    chunkZ--;
+                }
+                
+                ClientChunk* chunk = findChunk(chunkX, chunkZ);
+                if (chunk) {
+                    chunk->data.blocks[localX][update->y][localZ] = update->type;
+                }
+                break;
+            }
             
             default:
                 break;
@@ -198,6 +359,7 @@ int main(void) {
     // Initialisation de la fenêtre
     InitWindow(WINDOWS_WIDTH*WINDOWS_FACTOR, WINDOWS_WIDTH, "Minecraft en C");
     SetTargetFPS(60);
+    SetupRenderer();  // Configure OpenGL state
     
     // Initialisation de la caméra
     Camera3D camera = {0};
@@ -215,11 +377,15 @@ int main(void) {
     };
 
     // Création d'un chunk test
-    Chunk testChunk = {0};
+    ChunkData testChunk = {0};
     generateChunk(&testChunk, 0, 0);
 
     // Désactiver le curseur pour le mode FPS
     DisableCursor();
+
+    // Variables pour le material des chunks
+    Material chunkMaterial = {0};
+    bool materialInitialized = false;
 
     // Boucle principale
     while (!WindowShouldClose()) {
@@ -272,6 +438,28 @@ int main(void) {
             player.position.z -= right.z * speed;
         }
 
+        // Mise à jour des chunks chargés
+        updateLoadedChunks(player.position);
+        
+        // Gestion de la destruction des blocs
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            int blockX, blockY, blockZ;
+            if (worldToBlockCoords(player.position, direction, 5.0f, &blockX, &blockY, &blockZ)) {
+                BlockUpdate update = {
+                    .x = blockX,
+                    .y = blockY,
+                    .z = blockZ,
+                    .type = BLOCK_AIR
+                };
+                
+                Packet packet = {
+                    .type = PACKET_BLOCK_UPDATE,
+                    .blockUpdate = update
+                };
+                
+                rnetSend(client, &packet, sizeof(Packet), RNET_RELIABLE);
+            }
+        }
 
         // Mise à jour de la caméra
         camera.position = player.position;
@@ -286,14 +474,37 @@ int main(void) {
             ClearBackground(SKYBLUE);
             
             BeginMode3D(camera);
-                // Rendu du chunk test
-                for (int x = 0; x < CHUNK_SIZE; x++) {
-                    for (int z = 0; z < CHUNK_SIZE; z++) {
-                        for (int y = 0; y < WORLD_HEIGHT; y++) {
-                            if (testChunk.blocks[x][y][z] != 0) {
-                                DrawCube((Vector3){x, y, z}, 1.0f, 1.0f, 1.0f, BROWN);
-                            }
-                        }
+                // Rendu des chunks
+                if (!materialInitialized) {
+                    chunkMaterial = LoadMaterialDefault();
+                    materialInitialized = true;
+                }
+                
+                // Configure lighting
+                Vector3 lightDir = (Vector3){ -0.5f, -1.0f, -0.5f };
+                Vector3 lightColor = (Vector3){ 1.0f, 1.0f, 1.0f };
+                SetShaderValue(chunkMaterial.shader, GetShaderLocation(chunkMaterial.shader, "lightDir"), &lightDir, SHADER_UNIFORM_VEC3);
+                SetShaderValue(chunkMaterial.shader, GetShaderLocation(chunkMaterial.shader, "lightColor"), &lightColor, SHADER_UNIFORM_VEC3);
+                
+                for (int i = 0; i < loadedChunkCount; i++) {
+                    if (!loadedChunks[i].loaded) continue;
+                    
+                    // Mettre à jour le mesh si nécessaire
+                    if (loadedChunks[i].mesh.dirty) {
+                        updateChunkMesh(&loadedChunks[i].mesh, &loadedChunks[i].data);
+                    }
+                    
+                    // Calculer la position du chunk dans le monde
+                    Vector3 chunkPos = {
+                        loadedChunks[i].data.x * CHUNK_SIZE,
+                        0,
+                        loadedChunks[i].data.z * CHUNK_SIZE
+                    };
+                    
+                    // Dessiner le mesh du chunk
+                    if (loadedChunks[i].mesh.initialized) {
+                        Matrix transform = MatrixTranslate(chunkPos.x, chunkPos.y, chunkPos.z);
+                        DrawMesh(loadedChunks[i].mesh.mesh, chunkMaterial, transform);
                     }
                 }
                 
@@ -344,6 +555,15 @@ int main(void) {
     }
 
     // Nettoyage
+    if (materialInitialized) {
+        UnloadMaterial(chunkMaterial);
+    }
+    
+    for (int i = 0; i < loadedChunkCount; i++) {
+        if (loadedChunks[i].loaded) {
+            freeChunkMesh(&loadedChunks[i].mesh);
+        }
+    }
     rnetClose(client);
     rnetShutdown();
     CloseWindow();

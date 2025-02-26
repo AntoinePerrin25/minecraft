@@ -8,8 +8,10 @@
 #endif
 
 #include "network.h"
+#include "world_manager.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #define NETWORK_IMPL
 #include "rnet.h"
@@ -48,8 +50,38 @@ static double GetTime(void) {
 #endif
 }
 
+// Trouver la hauteur du terrain à une position donnée
+static int getHeightAt(WorldManager* wm, int x, int z) {
+    int chunkX = x / CHUNK_SIZE;
+    int chunkZ = z / CHUNK_SIZE;
+    int localX = x % CHUNK_SIZE;
+    int localZ = z % CHUNK_SIZE;
+    
+    if (localX < 0) {
+        localX += CHUNK_SIZE;
+        chunkX--;
+    }
+    if (localZ < 0) {
+        localZ += CHUNK_SIZE;
+        chunkZ--;
+    }
+    
+    ChunkData* chunk = worldManager_getChunk(wm, chunkX, chunkZ);
+    if (!chunk) return 64; // Hauteur par défaut
+    
+    // Rechercher le premier bloc non-air du haut vers le bas
+    for (int y = WORLD_HEIGHT - 1; y >= 0; y--) {
+        if (chunk->blocks[localX][y][localZ] != BLOCK_AIR) {
+            return y + 1;
+        }
+    }
+    return 64;
+}
+
 NetworkPlayer players[MAX_PLAYERS] = {0};
 int nextPlayerId = 1;
+
+WorldManager* world = NULL;
 
 void handleNewConnection(rnetPeer* peer) {
     rnetTargetPeer* target = rnetGetLastEventPeer(peer);
@@ -65,7 +97,10 @@ void handleNewConnection(rnetPeer* peer) {
         if (!players[i].connected) {
             players[i].connected = true;
             players[i].id = id;
-            players[i].position = (Vec3){0, 65, 0};
+            
+            // Trouver la hauteur du terrain au point de spawn
+            int spawnHeight = getHeightAt(world, 0, 0);
+            players[i].position = (Vec3){0, spawnHeight, 0};
             players[i].velocity = (Vec3){0, 0, 0};
             players[i].yaw = 0;
             players[i].pitch = 0;
@@ -121,6 +156,30 @@ void handleDisconnect(rnetPeer* peer, int playerId) {
     }
 }
 
+void handleChunkRequest(rnetPeer* peer, int chunkX, int chunkZ) {
+    ChunkData* chunk = worldManager_getChunk(world, chunkX, chunkZ);
+    if (!chunk) return;
+
+    Packet packet = {
+        .type = PACKET_CHUNK_DATA,
+        .chunk = *chunk
+    };
+
+    rnetSendToPeer(peer, rnetGetLastEventPeer(peer), &packet, sizeof(Packet), RNET_RELIABLE);
+}
+
+void handleBlockUpdate(rnetPeer* peer, BlockUpdate* update) {
+    // Modifier le block dans le monde
+    if (worldManager_setBlock(world, update->x, update->y, update->z, update->type)) {
+        // Diffuser la mise à jour à tous les joueurs
+        Packet packet = {
+            .type = PACKET_BLOCK_UPDATE,
+            .blockUpdate = *update
+        };
+        rnetBroadcast(peer, &packet, sizeof(Packet), RNET_RELIABLE);
+    }
+}
+
 int main(void) {
     printf("Starting Minecraft server on port %d...\n", SERVER_PORT);
     
@@ -137,7 +196,19 @@ int main(void) {
         return 1;
     }
     
-    printf("Server started successfully\n");
+    // Initialiser le monde avec une seed aléatoire
+    srand(time(NULL));
+    world = worldManager_create(rand());
+    printf("Server started successfully with seed: %d\n", world->seed);
+
+    // Pré-charger les chunks autour du spawn
+    printf("Pre-loading chunks around spawn...\n");
+    for (int x = -CHUNK_LOAD_DISTANCE; x <= CHUNK_LOAD_DISTANCE; x++) {
+        for (int z = -CHUNK_LOAD_DISTANCE; z <= CHUNK_LOAD_DISTANCE; z++) {
+            worldManager_getChunk(world, x, z);
+        }
+    }
+    printf("Chunks pre-loaded!\n");
 
     double lastTick = GetTime();
     lastDebugPrint = GetTime();
@@ -182,6 +253,12 @@ int main(void) {
                     case PACKET_PLAYER_STATE:
                         handlePlayerState(server, &gamePacket->player);
                         break;
+                    case PACKET_CHUNK_REQUEST:
+                        handleChunkRequest(server, gamePacket->chunkX, gamePacket->chunkZ);
+                        break;
+                    case PACKET_BLOCK_UPDATE:
+                        handleBlockUpdate(server, &gamePacket->blockUpdate);
+                        break;
                     case PACKET_WORLD_STATE:
                         stats.worldStatePackets++;
                         break;
@@ -194,8 +271,16 @@ int main(void) {
             
             lastTick = currentTime;
         }
+        
+        // Sauvegarder périodiquement le monde (toutes les 30 secondes)
+        static double lastSave = 0;
+        if (currentTime - lastSave >= 30.0) {
+            worldManager_saveAll(world);
+            lastSave = currentTime;
+        }
     }
     
+    worldManager_destroy(world);
     rnetClose(server);
     rnetShutdown();
     return 0;

@@ -9,6 +9,16 @@
 #endif
 
 #include "raylib.h"
+#include "rlgl.h"
+
+static void SetupRenderer(void) {
+    // Enable depth test and back-face culling
+    rlEnableDepthTest();
+    rlEnableBackfaceCulling();
+    
+    // Set clear color
+    ClearBackground(SKYBLUE);
+}
 
 // Wrapper functions pour éviter les conflits
 static inline void RenderCube(Vector3 position, float width, float height, float length, Color color) {
