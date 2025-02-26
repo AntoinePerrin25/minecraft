@@ -1,0 +1,6 @@
+./build/*.exe
+assets
+*.exe
+*.py
+.vscode
+*.old
