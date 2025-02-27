@@ -26,21 +26,14 @@ This project is a simple Minecraft-like game written in C using the Raylib libra
 
 2. Build the project:
     ```sh
-    gcc -o client src/main.c -lraylib -pthread -lm -ldl
-    gcc -o server src/server.c -pthread -lm -ldl
+    gcc -o nob nob.c
     ```
+    Then run nob
 
-### Running
-
-1. Start the server:
-    ```sh
-    ./build/server.exe
-    ```
-
-2. Start the client:
-    ```sh
-    ./build/game.exe
-    ```
+3. From your explorer or different terminals
+   Launch the build/server.exe
+   Launch the build/game.exe
+    
 
 ## Controls
 
