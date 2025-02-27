@@ -8,8 +8,8 @@
 
 #define CHUNK_SIZE 16
 #define WORLD_HEIGHT 256
-#define TERRAIN_HEIGHT 64  // Hauteur moyenne du terrain
-#define TERRAIN_SCALE 50.0f  // Échelle du bruit de Perlin
+#define TERRAIN_HEIGHT 32  // Reduced for more visible terrain
+#define TERRAIN_SCALE 20.0f  // Reduced for more variation
 
 // Perlin noise functions
 static float fade(float t) {
@@ -79,8 +79,21 @@ static int getTerrainHeight(int x, int z, int seed) {
     float nx = x / TERRAIN_SCALE;
     float nz = z / TERRAIN_SCALE;
     
-    float height = noise2d(nx, nz, seed);
-    return (int)(height * TERRAIN_HEIGHT + TERRAIN_HEIGHT);
+    // Add multiple octaves of noise for more interesting terrain
+    float height = 0;
+    float amplitude = 1.0f;
+    float frequency = 1.0f;
+    float sum = 0;
+    
+    for (int i = 0; i < 4; i++) {
+        height += noise2d(nx * frequency, nz * frequency, seed + i) * amplitude;
+        sum += amplitude;
+        amplitude *= 0.5f;
+        frequency *= 2.0f;
+    }
+    
+    height /= sum;  // Normalize
+    return (int)(height * TERRAIN_HEIGHT) + 64; // Base height of 64
 }
 
 // Fonction pour générer un chunk
@@ -91,21 +104,28 @@ static void generateChunk(ChunkData* chunk, int chunkX, int chunkZ, int seed) {
     int worldX = chunkX * CHUNK_SIZE;
     int worldZ = chunkZ * CHUNK_SIZE;
     
+    // Initialize all blocks to air first
+    memset(chunk->blocks, BLOCK_AIR, sizeof(chunk->blocks));
+    
+    // Set bedrock layer
+    for (int x = 0; x < CHUNK_SIZE; x++) {
+        for (int z = 0; z < CHUNK_SIZE; z++) {
+            chunk->blocks[x][0][z] = BLOCK_BEDROCK;
+        }
+    }
+    
+    // Generate terrain
     for (int x = 0; x < CHUNK_SIZE; x++) {
         for (int z = 0; z < CHUNK_SIZE; z++) {
             int height = getTerrainHeight(worldX + x, worldZ + z, seed);
             
-            for (int y = 0; y < WORLD_HEIGHT; y++) {
-                if (y == 0) {
-                    chunk->blocks[x][y][z] = BLOCK_BEDROCK;
-                } else if (y < height - 5) {
+            for (int y = 1; y < WORLD_HEIGHT; y++) {
+                if (y < height - 4) {
                     chunk->blocks[x][y][z] = BLOCK_STONE;
                 } else if (y < height - 1) {
                     chunk->blocks[x][y][z] = BLOCK_DIRT;
                 } else if (y == height - 1) {
                     chunk->blocks[x][y][z] = BLOCK_GRASS;
-                } else {
-                    chunk->blocks[x][y][z] = BLOCK_AIR;
                 }
             }
         }

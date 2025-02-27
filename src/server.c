@@ -12,8 +12,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-
-#define NETWORK_IMPL
 #include "rnet.h"
 
 // Statistiques du serveur
@@ -83,8 +81,7 @@ int nextPlayerId = 1;
 
 WorldManager* world = NULL;
 
-void handleNewConnection(rnetPeer* peer) {
-    rnetTargetPeer* target = rnetGetLastEventPeer(peer);
+void handleNewConnection(rnetPeer* peer, rnetTargetPeer* target) {
     if (!target) return;
     
     stats.connectPackets++;
@@ -156,16 +153,16 @@ void handleDisconnect(rnetPeer* peer, int playerId) {
     }
 }
 
-void handleChunkRequest(rnetPeer* peer, int chunkX, int chunkZ) {
-    ChunkData* chunk = worldManager_getChunk(world, chunkX, chunkZ);
+void handleChunkRequest(rnetPeer* peer, rnetTargetPeer* target, const Packet* packet) {
+    ChunkData* chunk = worldManager_getChunk(world, packet->chunkRequest.chunkX, packet->chunkRequest.chunkZ);
     if (!chunk) return;
 
-    Packet packet = {
+    Packet response = {
         .type = PACKET_CHUNK_DATA,
         .chunk = *chunk
     };
 
-    rnetSendToPeer(peer, rnetGetLastEventPeer(peer), &packet, sizeof(Packet), RNET_RELIABLE);
+    rnetSendToPeer(peer, target, &response, sizeof(Packet), RNET_RELIABLE);
 }
 
 void handleBlockUpdate(rnetPeer* peer, BlockUpdate* update) {
@@ -235,8 +232,9 @@ int main(void) {
             rnetPacket packet;
             while (rnetReceive(server, &packet)) {
                 if (packet.data == NULL) {
-                    // C'est un événement de connexion
-                    handleNewConnection(server);
+                    // C'est un événement de connexion, obtenir le peer cible
+                    rnetTargetPeer* target = rnetGetLastEventPeer(server);
+                    handleNewConnection(server, target);
                     continue;
                 }
                 
@@ -245,7 +243,7 @@ int main(void) {
                 
                 switch (gamePacket->type) {
                     case PACKET_CONNECT:
-                        handleNewConnection(server);
+                        // Ignorer les paquets CONNECT, on les traite déjà via l'événement de connexion
                         break;
                     case PACKET_DISCONNECT:
                         handleDisconnect(server, gamePacket->player.id);
@@ -254,7 +252,7 @@ int main(void) {
                         handlePlayerState(server, &gamePacket->player);
                         break;
                     case PACKET_CHUNK_REQUEST:
-                        handleChunkRequest(server, gamePacket->chunkX, gamePacket->chunkZ);
+                        handleChunkRequest(server, rnetGetLastEventPeer(server), gamePacket);
                         break;
                     case PACKET_BLOCK_UPDATE:
                         handleBlockUpdate(server, &gamePacket->blockUpdate);

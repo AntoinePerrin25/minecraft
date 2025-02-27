@@ -7,7 +7,7 @@
 #include <sys/stat.h>
 #include "world.h"
 
-#define WORLD_DIR "world"
+#define WORLD_DIR "build/world"  // Mettre à jour le chemin pour utiliser le dossier build
 
 // Structure pour stocker un chunk en mémoire avec son état
 typedef struct {
@@ -31,10 +31,12 @@ static WorldManager* worldManager_create(int seed) {
     wm->chunkCount = 0;
     wm->chunkCapacity = 0;
     
-    // Créer le dossier world s'il n'existe pas
+    // Créer le dossier build s'il n'existe pas
     #ifdef _WIN32
+    mkdir("build");
     mkdir(WORLD_DIR);
     #else
+    mkdir("build", 0777);
     mkdir(WORLD_DIR, 0777);
     #endif
     

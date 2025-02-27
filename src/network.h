@@ -65,8 +65,9 @@ typedef struct {
         NetworkPlayer player;
         ChunkData chunk;
         struct {
-            int chunkX, chunkZ;  // Pour PACKET_CHUNK_REQUEST
-        };
+            int chunkX;
+            int chunkZ;
+        } chunkRequest;  // Named struct for chunk request coords
         BlockUpdate blockUpdate;
     };
 } Packet;

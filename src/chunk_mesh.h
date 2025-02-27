@@ -19,6 +19,9 @@ typedef struct {
     bool initialized;
 } ChunkMesh;
 
+// Forward declare freeChunkMesh
+static void freeChunkMesh(ChunkMesh* mesh);
+
 // Vérifie si un bloc a une face visible dans la direction donnée
 static bool isFaceVisible(ChunkData* chunk, int x, int y, int z, int dx, int dy, int dz) {
     // Si on est en bordure de chunk, on considère la face comme visible
@@ -116,123 +119,6 @@ static void addFace(ChunkMesh* mesh, Vector3 pos, Vector3 normal, Color color) {
     mesh->vertexCount += 4;
 }
 
-// Génère ou met à jour le mesh d'un chunk
-static void updateChunkMesh(ChunkMesh* mesh, ChunkData* chunk) {
-    // Libérer les anciens buffers GPU et CPU
-    if (mesh->initialized) {
-        UnloadMesh(mesh->mesh);
-        mesh->initialized = false;
-    }
-    
-    if (mesh->vertices) {
-        free(mesh->vertices);
-        free(mesh->normals);
-        free(mesh->colors);
-        free(mesh->indices);
-        mesh->vertices = NULL;
-        mesh->normals = NULL;
-        mesh->colors = NULL;
-        mesh->indices = NULL;
-        mesh->capacity = 0;
-    }
-
-    // Réinitialiser le mesh
-    mesh->vertexCount = 0;
-    mesh->indexCount = 0;
-    
-    // Pour chaque block dans le chunk
-    for (int x = 0; x < CHUNK_SIZE; x++) {
-        for (int y = 0; y < WORLD_HEIGHT; y++) {
-            for (int z = 0; z < CHUNK_SIZE; z++) {
-                BlockType block = chunk->blocks[x][y][z];
-                if (block == BLOCK_AIR) continue;
-                
-                // Déterminer la couleur du bloc
-                Color color;
-                switch (block) {
-                    case BLOCK_BEDROCK: color = BLACK; break;
-                    case BLOCK_STONE: color = GRAY; break;
-                    case BLOCK_DIRT: color = BROWN; break;
-                    case BLOCK_GRASS: color = GREEN; break;
-                    default: continue;
-                }
-                
-                Vector3 pos = {x, y, z};
-                
-                // Vérifier chaque face
-                if (isFaceVisible(chunk, x, y, z, -1, 0, 0)) 
-                    addFace(mesh, pos, (Vector3){-1,0,0}, color);
-                if (isFaceVisible(chunk, x, y, z, 1, 0, 0))
-                    addFace(mesh, pos, (Vector3){1,0,0}, color);
-                if (isFaceVisible(chunk, x, y, z, 0, -1, 0))
-                    addFace(mesh, pos, (Vector3){0,-1,0}, color);
-                if (isFaceVisible(chunk, x, y, z, 0, 1, 0))
-                    addFace(mesh, pos, (Vector3){0,1,0}, color);
-                if (isFaceVisible(chunk, x, y, z, 0, 0, -1))
-                    addFace(mesh, pos, (Vector3){0,0,-1}, color);
-                if (isFaceVisible(chunk, x, y, z, 0, 0, 1))
-                    addFace(mesh, pos, (Vector3){0,0,1}, color);
-            }
-        }
-    }
-    
-    // Créer le mesh seulement si on a des vertices
-    if (mesh->vertexCount > 0) {
-        mesh->mesh = (Mesh){0};
-        mesh->mesh.vertexCount = mesh->vertexCount;
-        mesh->mesh.triangleCount = mesh->indexCount / 3;
-        
-        // Convertir les buffers pour le GPU
-        float* vertices = (float*)malloc(mesh->vertexCount * 3 * sizeof(float));
-        float* normals = (float*)malloc(mesh->vertexCount * 3 * sizeof(float));  // Allouer les normales
-        unsigned char* colors = (unsigned char*)malloc(mesh->vertexCount * 4);
-        unsigned short* indices = (unsigned short*)malloc(mesh->indexCount * sizeof(unsigned short));
-        
-        if (!vertices || !normals || !colors || !indices) {
-            // Gestion d'erreur d'allocation
-            free(vertices);
-            free(normals);
-            free(colors);
-            free(indices);
-            return;
-        }
-        
-        // Copier les données
-        for (int i = 0; i < mesh->vertexCount; i++) {
-            vertices[i * 3] = mesh->vertices[i].x;
-            vertices[i * 3 + 1] = mesh->vertices[i].y;
-            vertices[i * 3 + 2] = mesh->vertices[i].z;
-            
-            normals[i * 3] = mesh->normals[i].x;     // Copier les normales
-            normals[i * 3 + 1] = mesh->normals[i].y;
-            normals[i * 3 + 2] = mesh->normals[i].z;
-        }
-        
-        for (int i = 0; i < mesh->vertexCount; i++) {
-            colors[i * 4] = mesh->colors[i].r;
-            colors[i * 4 + 1] = mesh->colors[i].g;
-            colors[i * 4 + 2] = mesh->colors[i].b;
-            colors[i * 4 + 3] = mesh->colors[i].a;
-        }
-        
-        for (int i = 0; i < mesh->indexCount; i++) {
-            indices[i] = (unsigned short)mesh->indices[i];
-        }
-        
-        // Assigner les buffers au mesh
-        mesh->mesh.vertices = vertices;
-        mesh->mesh.normals = normals;
-        mesh->mesh.colors = colors;
-        mesh->mesh.indices = indices;
-        
-        // Charger dans la VRAM
-        UploadMesh(&mesh->mesh, false);
-        mesh->initialized = true;
-    }
-    
-    mesh->dirty = false;
-}
-
 // Libère les ressources du mesh
 static void freeChunkMesh(ChunkMesh* mesh) {
     if (!mesh) return;
@@ -254,6 +140,152 @@ static void freeChunkMesh(ChunkMesh* mesh) {
     mesh->indexCount = 0;
     mesh->capacity = 0;
     mesh->initialized = false;
+    mesh->dirty = false;
+}
+
+// Génère ou met à jour le mesh d'un chunk
+static void updateChunkMesh(ChunkMesh* mesh, ChunkData* chunk) {
+    printf("Starting mesh update for chunk (%d, %d)\n", chunk->x, chunk->z);
+    
+    // Reset mesh if it exists
+    if (mesh->initialized) {
+        printf("Unloading existing mesh\n");
+        UnloadMesh(mesh->mesh);
+        mesh->initialized = false;
+    }
+    
+    // Free existing CPU buffers
+    if (mesh->vertices) {
+        printf("Freeing existing CPU buffers\n");
+        free(mesh->vertices);
+        free(mesh->normals);
+        free(mesh->colors);
+        free(mesh->indices);
+    }
+    
+    // Initialize with default capacity
+    mesh->capacity = 1024;
+    mesh->vertices = malloc(mesh->capacity * sizeof(Vector3));
+    mesh->normals = malloc(mesh->capacity * sizeof(Vector3));
+    mesh->colors = malloc(mesh->capacity * sizeof(Color));
+    mesh->indices = malloc(mesh->capacity * 6 * sizeof(int));
+    
+    if (!mesh->vertices || !mesh->normals || !mesh->colors || !mesh->indices) {
+        printf("Failed to allocate mesh buffers\n");
+        freeChunkMesh(mesh);
+        return;
+    }
+
+    printf("Allocated initial mesh buffers with capacity %d\n", mesh->capacity);
+    mesh->vertexCount = 0;
+    mesh->indexCount = 0;
+    
+    // Pour chaque block dans le chunk
+    int visibleFaces = 0;
+    for (int x = 0; x < CHUNK_SIZE; x++) {
+        for (int y = 0; y < WORLD_HEIGHT; y++) {
+            for (int z = 0; z < CHUNK_SIZE; z++) {
+                BlockType block = chunk->blocks[x][y][z];
+                if (block == BLOCK_AIR) continue;
+                
+                // Déterminer la couleur du bloc
+                Color color;
+                switch (block) {
+                    case BLOCK_BEDROCK: color = BLACK; break;
+                    case BLOCK_STONE: color = GRAY; break;
+                    case BLOCK_DIRT: color = BROWN; break;
+                    case BLOCK_GRASS: color = GREEN; break;
+                    default: continue;
+                }
+                
+                Vector3 pos = {x, y, z};
+                
+                // Vérifier chaque face
+                if (isFaceVisible(chunk, x, y, z, -1, 0, 0)) {
+                    addFace(mesh, pos, (Vector3){-1,0,0}, color);
+                    visibleFaces++;
+                }
+                if (isFaceVisible(chunk, x, y, z, 1, 0, 0)) {
+                    addFace(mesh, pos, (Vector3){1,0,0}, color);
+                    visibleFaces++;
+                }
+                if (isFaceVisible(chunk, x, y, z, 0, -1, 0)) {
+                    addFace(mesh, pos, (Vector3){0,-1,0}, color);
+                    visibleFaces++;
+                }
+                if (isFaceVisible(chunk, x, y, z, 0, 1, 0)) {
+                    addFace(mesh, pos, (Vector3){0,1,0}, color);
+                    visibleFaces++;
+                }
+                if (isFaceVisible(chunk, x, y, z, 0, 0, -1)) {
+                    addFace(mesh, pos, (Vector3){0,0,-1}, color);
+                    visibleFaces++;
+                }
+                if (isFaceVisible(chunk, x, y, z, 0, 0, 1)) {
+                    addFace(mesh, pos, (Vector3){0,0,1}, color);
+                    visibleFaces++;
+                }
+            }
+        }
+    }
+    
+    printf("Found %d visible faces in chunk\n", visibleFaces);
+    
+    // Create mesh only if we have vertices
+    if (mesh->vertexCount > 0) {
+        printf("Creating GPU mesh with %d vertices and %d indices\n", 
+               mesh->vertexCount, mesh->indexCount);
+               
+        mesh->mesh = (Mesh){0};
+        mesh->mesh.vertexCount = mesh->vertexCount;
+        mesh->mesh.triangleCount = mesh->indexCount / 3;
+        
+        // Allocate GPU buffers
+        mesh->mesh.vertices = RL_MALLOC(mesh->vertexCount * 3 * sizeof(float));
+        mesh->mesh.normals = RL_MALLOC(mesh->vertexCount * 3 * sizeof(float));
+        mesh->mesh.colors = RL_MALLOC(mesh->vertexCount * 4 * sizeof(unsigned char));
+        mesh->mesh.indices = RL_MALLOC(mesh->indexCount * sizeof(unsigned short));
+        
+        if (!mesh->mesh.vertices || !mesh->mesh.normals || !mesh->mesh.colors || !mesh->mesh.indices) {
+            printf("Failed to allocate GPU buffers\n");
+            freeChunkMesh(mesh);
+            return;
+        }
+        
+        printf("Successfully allocated GPU buffers\n");
+        
+        // Convert and copy data
+        float* vertices = (float*)mesh->mesh.vertices;
+        float* normals = (float*)mesh->mesh.normals;
+        unsigned char* colors = (unsigned char*)mesh->mesh.colors;
+        
+        for (int i = 0; i < mesh->vertexCount; i++) {
+            vertices[i * 3] = mesh->vertices[i].x;
+            vertices[i * 3 + 1] = mesh->vertices[i].y;
+            vertices[i * 3 + 2] = mesh->vertices[i].z;
+            
+            normals[i * 3] = mesh->normals[i].x;
+            normals[i * 3 + 1] = mesh->normals[i].y;
+            normals[i * 3 + 2] = mesh->normals[i].z;
+            
+            colors[i * 4] = mesh->colors[i].r;
+            colors[i * 4 + 1] = mesh->colors[i].g;
+            colors[i * 4 + 2] = mesh->colors[i].b;
+            colors[i * 4 + 3] = mesh->colors[i].a;
+        }
+        
+        for (int i = 0; i < mesh->indexCount; i++) {
+            ((unsigned short*)mesh->mesh.indices)[i] = (unsigned short)mesh->indices[i];
+        }
+        
+        printf("Uploading mesh to GPU...\n");
+        UploadMesh(&mesh->mesh, false);
+        mesh->initialized = true;
+        printf("Mesh initialization complete\n");
+    } else {
+        printf("No vertices generated for chunk, skipping mesh creation\n");
+    }
+    
     mesh->dirty = false;
 }
 
