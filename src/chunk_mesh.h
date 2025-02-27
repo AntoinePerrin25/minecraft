@@ -85,15 +85,15 @@ static void addFace(ChunkMesh* mesh, Vector3 pos, Vector3 normal, Color color) {
         // Face Z (avant/arrière)
         float z = pos.z + (normal.z > 0 ? 1.0f : 0.0f);
         if (normal.z > 0) {
-            v[0] = (Vector3){pos.x, pos.y, z};          // Bas gauche
-            v[1] = (Vector3){pos.x, pos.y + 1, z};      // Haut gauche
-            v[2] = (Vector3){pos.x + 1, pos.y + 1, z};  // Haut droite
-            v[3] = (Vector3){pos.x + 1, pos.y, z};      // Bas droite
-        } else {
             v[0] = (Vector3){pos.x + 1, pos.y, z};      // Bas gauche
             v[1] = (Vector3){pos.x + 1, pos.y + 1, z};  // Haut gauche
             v[2] = (Vector3){pos.x, pos.y + 1, z};      // Haut droite
             v[3] = (Vector3){pos.x, pos.y, z};          // Bas droite
+        } else {
+            v[0] = (Vector3){pos.x, pos.y, z};          // Bas gauche
+            v[1] = (Vector3){pos.x, pos.y + 1, z};      // Haut gauche
+            v[2] = (Vector3){pos.x + 1, pos.y + 1, z};  // Haut droite
+            v[3] = (Vector3){pos.x + 1, pos.y, z};      // Bas droite
         }
     }
     
@@ -157,6 +157,12 @@ static void updateChunkMesh(ChunkMesh* mesh, ChunkData* chunk) {
                     default: continue;
                 }
                 
+                // Ajouter une variation aléatoire de luminosité
+                float shade = 0.9f + ((float)(rand() % 10) / 100.0f); // Variation de 0.8 à 1.2
+                color.r = (unsigned char)(color.r * shade);
+                color.g = (unsigned char)(color.g * shade);
+                color.b = (unsigned char)(color.b * shade);
+
                 Vector3 pos = {x, y, z};
                 
                 // Vérifier chaque face
