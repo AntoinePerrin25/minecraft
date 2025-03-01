@@ -201,21 +201,34 @@ void test_unload_distant_chunks()
 
 void test_reload_chunk()
 {
-    // testing to load 100chunks and reload one them all
-    ChunkManager manager = InitChunkManager(200);
+    // testing to load 100 chunks and remove them all
+    ChunkManager manager = InitChunkManager(100);
     ClientChunk* chunklist[100] = {0};
     int index = 0;
     for (int x = -5; x <= 5; x++) {
         for (int z = -5; z <= 5; z++) {
             ClientChunk* chunk = CreateClientChunk(x, z);
-            chunk->loaded = 1;
-            chunklist[index++] = chunk;
-            AddChunk(&manager, chunk);
+            assert(chunk && "Chunk creation failed");
+            if (chunk) {
+                chunk->loaded = 1;
+                chunklist[index++] = chunk;
+                AddChunk(&manager, chunk);
+                assert(manager.count <= 100 && "Chunk manager count exceeded 100");
+            }
+            else
+            {
+                printf("Failed to create chunk at (%d, %d)\n", x, z);
+            }
         }
     }
 
-    
-
+    // remove all chunks and add them back
+    for (int i = 0; i < 100; i++)
+    {
+        RemoveChunk(&manager, chunklist[i]->x, chunklist[i]->z);
+        assert(chunklist[i] == NULL && "Chunk should be successfully removed");
+    }
 
     FreeChunkManager(manager);
+    printf("Chunk loading and removal test passed.\n\n");
 }

@@ -3,6 +3,7 @@
 #define NOB_IMPLEMENTATION
 #include "../nob.h"
 #include <math.h>
+
 // Chunk manager initialization and cleanup
 ChunkManager InitChunkManager(int initialCapacity)
 {
@@ -30,6 +31,7 @@ void FreeChunkManager(ChunkManager manager)
             FreeClientChunk(manager.chunks[i]);
     }
     free(manager.chunks);
+    nob_log(3, "Freed chunk manager\n");
 }
 
 // Chunk operations
@@ -66,11 +68,17 @@ ClientChunk* CreateClientChunk(int x, int z)
 
 void FreeClientChunk(ClientChunk* chunk)
 {
+
+    if (!chunk)
+    {
+        nob_log(3, "Unable to free chunk: Chunk is NULL\n");
+        return;
+    }
+    
     int x = chunk->x;
     int z = chunk->z;
-    if (!chunk) return;
 
-    nob_log(3, "Freeing chunk at (%d, %d)\n", chunk->x, chunk->z);
+    nob_log(3, "Freeing chunk at (%d, %d)\n", x, z);
     
     if (chunk->mesh)
     {
@@ -134,6 +142,7 @@ void AddChunk(ChunkManager* manager, ClientChunk* chunk)
 
 void RemoveChunk(ChunkManager* manager, int x, int z)
 {
+    nob_log(3, "Removing chunk at (%d, %d)\n", x, z);
     for (int i = 0; i < manager->capacity; i++)
     {
         if (manager->chunks[i] &&
@@ -143,6 +152,7 @@ void RemoveChunk(ChunkManager* manager, int x, int z)
             FreeClientChunk(manager->chunks[i]);
             manager->chunks[i] = NULL;
             manager->count--;
+            nob_log(3, "Chunk at (%d, %d) successfully removed\n", x, z);
             return;
         }
     }
@@ -179,7 +189,7 @@ ChunkVertical* CreateChunkVertical(unsigned int y)
     ChunkVertical* vertical = malloc(sizeof(ChunkVertical));
     if (!vertical) return NULL;
 
-    vertical->y = y;
+    vertical->verticaly = y;
     vertical->isOnlyBlockType = 1;
     vertical->blockType = BLOCK_AIR;
 

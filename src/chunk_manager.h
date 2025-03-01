@@ -20,7 +20,7 @@
 #define BLOCK_ID_MASK        0x01FF
 #define NBLOCK_ID_MASK       (~BLOCK_ID_MASK)
 
-// 12 bits enum
+// Block type enumeration 2^9 = 512 possible block types
 typedef enum
 {
     BLOCK_AIR= 0,
@@ -33,16 +33,14 @@ typedef enum
     BLOCK_WOOD = 7,
 } BlockType;
 
-typedef struct __attribute__((packed)) BlockUpdate
-{
-    int x;
-    int y;
-    int z;
-    BlockData block;
-} BlockUpdate;
-
-
-
+/**
+ * @brief Block data structure containing block type and properties
+ * @param Type Block type identifier (9 bits)
+ * @param lightLevel Light level of the block (4 bits)
+ * @param gravity Whether the block is affected by gravity (1 bit)
+ * @param solid Whether the block is solid (1 bit)
+ * @param transparent Whether the block is transparent (1 bit)
+ */
 typedef struct __attribute__((packed)) BlockData
 {
     BlockType Type :9;
@@ -52,22 +50,54 @@ typedef struct __attribute__((packed)) BlockData
     uint8_t transparent :1;
 } BlockData;
 
+/**
+ * @brief Structure representing a block update event
+ * @param x X coordinate of the block
+ * @param y Y coordinate of the block
+ * @param z Z coordinate of the block
+ * @param block Block data for the update
+ */
+typedef struct __attribute__((packed)) BlockUpdate
+{
+    int x;
+    int y;
+    int z;
+    BlockData block;
+} BlockUpdate;
+
+/**
+ * @brief Vertical chunk structure containing 16x16x16 blocks
+ * @param blocks 3D array of block data
+ * @param verticaly Vertical position of the chunk (4 bits)
+ * @param isOnlyBlockType Flag indicating if chunk contains only one block type (1 bit)
+ * @param blockType Type of block if chunk contains only one type (9 bits)
+ */
 typedef struct __attribute__((packed)) ChunkVertical
 {
-    BlockData layers[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];
-    unsigned int y;
+    BlockData blocks[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];
+    unsigned int verticaly : 4;
     unsigned int isOnlyBlockType : 1;
-    BlockType blockType : 3;
+    BlockType blockType : 9;
 
 } ChunkVertical;
 
+/**
+ * @brief Chunk data structure containing 16 vertical chunks
+ * @param *verticals Array of pointers to vertical chunks
+ */
 typedef struct __attribute__((packed)) ChunkData
 {
     ChunkVertical* verticals[WORLD_HEIGHT];
-    // 16 vertical chunks (16*16*16) = 4096 blocks
 } ChunkData;
 
-
+/**
+ * @brief Client-side chunk structure containing rendering data
+ * @param *data Pointer to chunk data
+ * @param *mesh Pointer to chunk mesh
+ * @param loaded Flag indicating if chunk is loaded
+ * @param x X coordinate of chunk in world
+ * @param z Z coordinate of chunk in world
+ */
 typedef struct __attribute__((packed)) ClientChunk
 {
     ChunkData *data;
@@ -77,7 +107,12 @@ typedef struct __attribute__((packed)) ClientChunk
     int z;
 } ClientChunk;
 
-
+/**
+ * @brief Chunk manager structure for handling multiple chunks
+ * @param **chunks Array of pointers to client chunks
+ * @param count Number of currently allocated chunks
+ * @param capacity Maximum number of chunks that can be stored
+ */
 typedef struct ChunkManager
 {
     ClientChunk **chunks; // Tableau de pointeurs vers les chunks
@@ -85,7 +120,14 @@ typedef struct ChunkManager
     int capacity;
 } ChunkManager;
 
-
+/**
+ * @brief Player structure containing position and orientation data
+ * @param position Player's position in world
+ * @param velocity Player's velocity vector
+ * @param yaw Player's horizontal rotation
+ * @param pitch Player's vertical rotation
+ * @param id Player's unique identifier
+ */
 typedef struct
 {
     Vector3 position;
@@ -94,8 +136,6 @@ typedef struct
     float pitch;
     int id;
 } Player;
-
-
 
 // Chunk manager initialization and cleanup
 ChunkManager InitChunkManager(int initialCapacity);
