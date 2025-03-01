@@ -1,4 +1,5 @@
 build
+world
 assets
 *.exe
 *.py

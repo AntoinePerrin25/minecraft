@@ -1,9 +1,12 @@
 #include <stdint.h>
 
-#include "raylib.h"
+#include "../include/raylib.h"
 
-#define MAX_LIGHT_LEVEL 2**4
+#define MAX_LIGHT_LEVEL 16
 #define CHUNK_SIZE 16
+#define CHUNK_SIZE2 256
+#define CHUNK_SIZE3 4096
+
 #define WORLD_HEIGHT 256
 #define RENDER_DISTANCE 2
 #define LIGHT_LEVEL_MASK     0xF000
@@ -30,73 +33,28 @@ typedef enum
     BLOCK_WOOD = 7,
 } BlockType;
 
-
-typedef uint16_t BlockData;
-// 2 bytes : LLLL'GSTB'BBBB'BBBB
-// L : 4 (Light)
-// G : 1 (Gravity)
-// S : 1 (Solid)
-// T : 1 (Transparent)
-// B : 9 (Block)
-
-static inline BlockData createBlock(BlockType id, uint8_t lightLevel, uint8_t gravity, uint8_t solid, uint8_t transparent) {
-    uint16_t result = id & BLOCK_ID_MASK;
-    if (gravity) result |= GRAVITY_ID_MASK;
-    if (solid) result |= SOLID_ID_MASK;
-    if (transparent) result |= 0x0200; // Transparent bit (bit 9)
-    result |= ((lightLevel & 0x0F) << 12);
-    return result;
-}
-
-static inline BlockType getBlockID(BlockData block) {
-    return (BlockType)(block & BLOCK_ID_MASK);
-}
-
-static inline uint8_t getLightLevel(BlockData block) {
-    return (block >> 12) & 0x0F;
-}
-
-static inline uint8_t isGravityEnabled(BlockData block) {
-    return (block & GRAVITY_ID_MASK) != 0;
-}
-
-static inline uint8_t isSolid(BlockData block) {
-    return (block & SOLID_ID_MASK) != 0;
-}
-
-static inline uint8_t isTransparent(BlockData block) {
-    return (block & TRANSPARENT_ID_MASK) != 0; // Check transparent bit
-}
-
-static inline BlockData setBlockID(BlockData block, BlockType id) {
-    return (block & NBLOCK_ID_MASK) | (id & BLOCK_ID_MASK);
-}
-
-static inline BlockData setLightLevel(BlockData block, uint8_t lightLevel) {
-    return (block & NLIGHT_LEVEL_MASK) | ((lightLevel & 0x0F) << 12);
-}
-
-static inline BlockData setGravity(BlockData block, uint8_t gravity) {
-    return gravity ? (block | GRAVITY_ID_MASK) : (block & NGRAVITY_ID_MASK);
-}
-
-static inline BlockData setSolid(BlockData block, uint8_t solid) {
-    return solid ? (block | SOLID_ID_MASK) : (block & NSOLID_ID_MASK);
-}
-
-static inline BlockData setTransparent(BlockData block, uint8_t transparent) {
-    return transparent ? (block | TRANSPARENT_ID_MASK) : (block & NTRANSPARENT_ID_MASK);
-}
-
-typedef struct __attribute__((packed)) ChunkLayer
+typedef struct __attribute__((packed)) BlockUpdate
 {
-    BlockData blocks[CHUNK_SIZE][CHUNK_SIZE];
-} ChunkLayer;
+    int x;
+    int y;
+    int z;
+    BlockData block;
+} BlockUpdate;
 
+
+
+typedef struct __attribute__((packed)) BlockData
+{
+    BlockType Type :9;
+    uint8_t lightLevel : 4;
+    uint8_t gravity :1;
+    uint8_t solid :1;
+    uint8_t transparent :1;
+} BlockData;
 
 typedef struct __attribute__((packed)) ChunkVertical
 {
-    ChunkLayer layers[CHUNK_SIZE];
+    BlockData layers[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];
     unsigned int y;
     unsigned int isOnlyBlockType : 1;
     BlockType blockType : 3;
@@ -106,29 +64,17 @@ typedef struct __attribute__((packed)) ChunkVertical
 typedef struct __attribute__((packed)) ChunkData
 {
     ChunkVertical* verticals[WORLD_HEIGHT];
-    unsigned int isLoaded : 1;
-    int x, z;
+    // 16 vertical chunks (16*16*16) = 4096 blocks
 } ChunkData;
-
-
-typedef struct ChunkMesh
-{
-    Mesh mesh;
-    Vector3 *vertices;
-    Vector3 *normals;
-    Color *colors;
-    unsigned short *indices;
-    int vertexCount;
-    int indexCount;
-    int capacity;
-} ChunkMesh;
 
 
 typedef struct __attribute__((packed)) ClientChunk
 {
     ChunkData *data;
-    ChunkMesh *mesh;
+    Mesh *mesh;
     unsigned int loaded : 1;
+    int x;
+    int z;
 } ClientChunk;
 
 
@@ -139,6 +85,7 @@ typedef struct ChunkManager
     int capacity;
 } ChunkManager;
 
+
 typedef struct
 {
     Vector3 position;
@@ -147,3 +94,36 @@ typedef struct
     float pitch;
     int id;
 } Player;
+
+
+
+// Chunk manager initialization and cleanup
+ChunkManager InitChunkManager(int initialCapacity);
+void FreeChunkManager(ChunkManager manager);
+
+// Chunk operations
+ClientChunk* CreateClientChunk(int x, int z);
+void FreeClientChunk(ClientChunk* chunk);
+ClientChunk* GetChunk(ChunkManager* manager, int x, int z);
+void AddChunk(ChunkManager* manager, ClientChunk* chunk);
+void RemoveChunk(ChunkManager* manager, int x, int z);
+Vector2 worldToChunkCoords(Vector3 worldPos);
+void unloadDistantChunks(ChunkManager* manager, Vector3 playerPos);
+
+// Chunk vertical operations
+ChunkVertical* CreateChunkVertical(unsigned int y);
+void FreeChunkVertical(ChunkVertical* vertical);
+
+// Block operations
+BlockData GetBlock(ChunkManager* manager, int x, int y, int z);
+void SetBlock(ChunkManager* manager, int x, int y, int z, BlockData block);
+void SetBlockType(ChunkManager* manager, int x, int y, int z, BlockType type);
+
+// Mesh generation
+void GenerateChunkMesh(ClientChunk* chunk);
+void UpdateChunkMesh(ClientChunk* chunk);
+void RenderChunks(ChunkManager* manager, Player* player);
+
+// Light propagation
+void PropagateLight(ChunkManager* manager, int x, int y, int z, uint8_t lightLevel);
+void UpdateLightLevels(ChunkManager* manager, int x, int z);
