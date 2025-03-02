@@ -220,6 +220,7 @@
     (NOB_ASSERT((size_t)index < NOB_ARRAY_LEN(array)), array[(size_t)index])
 
 typedef enum {
+    NOB_DEBUG,
     NOB_INFO,
     NOB_WARNING,
     NOB_ERROR,
@@ -1104,6 +1105,9 @@ void nob_log(Nob_Log_Level level, const char *fmt, ...)
     if (level < nob_minimal_log_level) return;
 
     switch (level) {
+    case NOB_DEBUG:
+        fprintf(stderr, "[DEBUG] ");
+        break;
     case NOB_INFO:
         fprintf(stderr, "[INFO] ");
         break;

@@ -2,8 +2,9 @@
 
 #define NOB_IMPLEMENTATION
 #include "../nob.h"
-#include "chunk_manager.h"
+#define NOB_LEVEL_DEF NOB_INFO
 
+#include "chunk_manager.h"
 #include "raylib.h"
 
 
@@ -12,10 +13,10 @@ ChunkManager *InitChunkManager(int initialCapacity)
 {
     ChunkManager* manager = calloc(1, sizeof(*manager) + initialCapacity*(sizeof(ClientChunk*)));
     if (!manager) {
-        nob_log(3, "Failed to allocate chunk manager");
+        nob_log(NOB_ERROR, "Failed to allocate chunk manager");
     }
     else {
-        nob_log(3, "Allocated chunk manager chunks\n");
+        nob_log(NOB_LEVEL_DEF, "Allocated chunk manager chunks\n");
         // Count already to 0
         manager->capacity = initialCapacity;
     }
@@ -24,13 +25,13 @@ ChunkManager *InitChunkManager(int initialCapacity)
 
 void FreeChunkManager(ChunkManager* manager)
 {
-    for (int i = 0; i < manager->capacity; i++)
+    for (int i = 0; i < manager->count; i++)
     {
         if (manager->chunks[i])
             FreeClientChunk(manager->chunks[i]);
     }
     free(manager);
-    nob_log(3, "Freed chunk manager\n");
+    nob_log(NOB_LEVEL_DEF, "Freed chunk manager\n");
 }
 
 // Chunk operations
@@ -43,7 +44,7 @@ ClientChunk* CreateClientChunk(int x, int z)
     chunk->x = x;
     chunk->z = z;
 
-    nob_log(3, "Created chunk at (%d, %d)\n", x, z);
+    nob_log(NOB_LEVEL_DEF, "Created chunk at (%d, %d)\n", x, z);
 
     return chunk;
 }
@@ -53,16 +54,16 @@ void FreeClientChunk(ClientChunk* chunk)
 
     if (!chunk)
     {
-        nob_log(3, "Unable to free chunk: Chunk is NULL\n");
+        nob_log(NOB_ERROR, "Unable to free chunk: Chunk is NULL\n");
         return;
     }
     
     int x = chunk->x;
     int z = chunk->z;
 
-    nob_log(3, "Freeing chunk at (%d, %d)\n", x, z);
+    nob_log(NOB_LEVEL_DEF, "Freeing chunk at (%d, %d)\n", x, z);
     
-    nob_log(2, "FreeClientChunk : Mesh Need to be unloaded later\n");
+    nob_log(NOB_WARNING, "FreeClientChunk : Mesh Need to be unloaded later\n");
     UnloadMesh(chunk->mesh);
     
     for(int y = 0; y < CHUNK_SIZE; y++)
@@ -71,14 +72,14 @@ void FreeClientChunk(ClientChunk* chunk)
     }
 
     free(chunk);
-    nob_log(3, "Freed chunk at (%d, %d)\n", x, z);
+    nob_log(NOB_LEVEL_DEF, "Freed chunk at (%d, %d)\n", x, z);
     
 }
 
 
 ClientChunk* GetChunk(ChunkManager* manager, int x, int z)
 {
-    nob_log(3, "Retrieving chunk at (%d, %d)\n", x, z);
+    nob_log(NOB_LEVEL_DEF, "Retrieving chunk at (%d, %d)\n", x, z);
     for (int i = 0; i < manager->capacity; i++)
     {
         if (manager->chunks[i]          &&
@@ -87,7 +88,7 @@ ClientChunk* GetChunk(ChunkManager* manager, int x, int z)
             manager->chunks[i]->z == z)
         {
             
-            nob_log(3, "Chunk retrieved at (%d, %d)\n", x, z);
+            nob_log(NOB_LEVEL_DEF, "Chunk retrieved at (%d, %d)\n", x, z);
             return manager->chunks[i];
         }
     }
@@ -98,26 +99,20 @@ void AddChunk(ChunkManager* manager, ClientChunk* chunk)
 {
     if (!chunk)
     {
-        nob_log(3, "Unable to add chunk: Chunk is NULL");
+        nob_log(NOB_ERROR, "Unable to add chunk: Chunk is NULL");
         return;
     }
     if (manager->count >= manager->capacity) 
     {
-        nob_log(3, "Unable to add chunk: Chunk manager is full");
+        nob_log(NOB_ERROR, "Unable to add chunk: Chunk manager is full");
         return;
     }
 
-    for (int i = 0; i < manager->capacity; i++)
-    {
-        if (!manager->chunks[i])
-        {
-            manager->chunks[i] = chunk;
-            manager->count++;
-            return;
-        }
-    }    
-    nob_log(3, "Chunk added at (%d, %d)\n", chunk->x, chunk->z);
+    // Add chunk at the next available index (count)
+    manager->chunks[manager->count] = chunk;
     manager->count++;
+    
+    nob_log(NOB_INFO, "Chunk added at (%d, %d)\n", chunk->x, chunk->z);
 }
 
 void RemoveChunk(ChunkManager* manager, int index)
@@ -125,12 +120,12 @@ void RemoveChunk(ChunkManager* manager, int index)
     ClientChunk* chunk = manager->chunks[index];
     int x = chunk->x;
     int z = chunk->z;
-    nob_log(3, "Removing chunk at (%d, %d)\n", chunk->x, chunk->z);
+    nob_log(NOB_LEVEL_DEF, "Removing chunk at (%d, %d)\n", chunk->x, chunk->z);
  
     FreeClientChunk(manager->chunks[index]);
     manager->chunks[index] = NULL;
     manager->count--;
-    nob_log(3, "Chunk at (%d, %d) successfully removed\n", x, z);
+    nob_log(NOB_LEVEL_DEF, "Chunk at (%d, %d) successfully removed\n", x, z);
     return;
 }
 
@@ -158,7 +153,7 @@ void unloadDistantChunks(ChunkManager* manager, const Vector3* playerPos)
             RemoveChunk(manager, index);
         }
     }
-    printf("Unloaded Chunks at %d, %d\n", playerChunk.x, playerChunk.z);
+    nob_log(NOB_LEVEL_DEF, "Unloaded Chunks at %d, %d\n", playerChunk.x, playerChunk.z);
 }
 
 // Chunk vertical operations
@@ -195,7 +190,6 @@ void SetBlock(ChunkManager* manager, int x, int y, int z, BlockData block)
         *blockData = block;
     }
 }
-
 
 
 

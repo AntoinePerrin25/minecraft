@@ -10,14 +10,13 @@ int main(int argc, char **argv)
     nob_mkdir_if_not_exists("src");
     nob_mkdir_if_not_exists("tests");
 
-    
+     
     Nob_Cmd cmd = {0};
     nob_cmd_append(&cmd, "gcc");
-    nob_cmd_append(&cmd, "-Wall", "-Wextra", "-O3");
-    nob_cmd_append(&cmd, "-I./include");
-    nob_cmd_append(&cmd, "./src/chunk_manager.c", "./src/tests.c", "");
+    nob_cmd_append(&cmd, "-Wall", "-Wextra", "-Werror", "-O3", "-g");
+    nob_cmd_append(&cmd, "-I./include/", "-L./lib/");
+    nob_cmd_append(&cmd, "./src/chunk_manager.c", "./src/tests.c");
     nob_cmd_append(&cmd, "-o", "./tests/tests");
-    nob_cmd_append(&cmd, "-L./lib");
     nob_cmd_append(&cmd, "-lraylib", "-lenet", "-lopengl32", "-lgdi32", "-lwinmm", "-lws2_32");
     if (!nob_cmd_run_sync(cmd)) return 1;
     
