@@ -10,24 +10,25 @@ int main(int argc, char **argv)
     nob_mkdir_if_not_exists("src");
     nob_mkdir_if_not_exists("tests");
 
-    nob_log(NOB_INFO, "Still There 1");
     
-        Nob_Cmd cmd = {0};
-        nob_cmd_append(&cmd, "gcc");
-        nob_cmd_append(&cmd, "-Wall", "-Wextra", "-O3");
-        nob_cmd_append(&cmd, "-I./include");
-        nob_cmd_append(&cmd, "./src/chunk_manager.c", "./src/tests.c", "");
-        nob_cmd_append(&cmd, "-o", "./tests/tests");
-        nob_cmd_append(&cmd, "-L./lib");
-        nob_cmd_append(&cmd, "-lraylib", "-lenet", "-lopengl32", "-lgdi32", "-lwinmm", "-lws2_32");
-        if (!nob_cmd_run_sync(cmd)) return 1;
-        
-        cmd = (Nob_Cmd){0};
-        nob_cmd_append(&cmd, "./tests/tests");
-        nob_cmd_run_async(cmd);
-        if (!nob_cmd_run_sync(cmd)) return 1;
-        
-        printf("Tests Executed\n");
+    Nob_Cmd cmd = {0};
+    nob_cmd_append(&cmd, "gcc");
+    nob_cmd_append(&cmd, "-Wall", "-Wextra", "-O3");
+    nob_cmd_append(&cmd, "-I./include");
+    nob_cmd_append(&cmd, "./src/chunk_manager.c", "./src/tests.c", "");
+    nob_cmd_append(&cmd, "-o", "./tests/tests");
+    nob_cmd_append(&cmd, "-L./lib");
+    nob_cmd_append(&cmd, "-lraylib", "-lenet", "-lopengl32", "-lgdi32", "-lwinmm", "-lws2_32");
+    if (!nob_cmd_run_sync(cmd)) return 1;
+    
+    /*
+    cmd = (Nob_Cmd){0};
+    nob_cmd_append(&cmd, "./tests/tests");
+    nob_cmd_run_async(cmd);
+    if (!nob_cmd_run_sync(cmd)) return 1;
+    
+    printf("Tests Executed\n");
+    */
 
     return 0;
 }

@@ -1,6 +1,7 @@
 #include <stdint.h>
 
-#include "../include/raylib.h"
+#include <raylib/raylib.h>
+
 
 #define MAX_LIGHT_LEVEL 16
 #define CHUNK_SIZE 16
@@ -23,14 +24,15 @@
 // Block type enumeration 2^9 = 512 possible block types
 typedef enum
 {
-    BLOCK_AIR= 0,
-    BLOCK_GRASS = 1,
-    BLOCK_DIRT = 2,
-    BLOCK_STONE = 3,
-    BLOCK_BEDROCK = 4,
-    BLOCK_WATER = 5,
-    BLOCK_SAND = 6,
-    BLOCK_WOOD = 7,
+    BLOCK_NONE,
+    BLOCK_AIR,
+    BLOCK_BEDROCK,
+    BLOCK_DIRT,
+    BLOCK_GRASS,
+    BLOCK_STONE,
+    BLOCK_WATER,
+    BLOCK_SAND,
+    BLOCK_WOOD,
 } BlockType;
 
 /**
@@ -41,13 +43,13 @@ typedef enum
  * @param solid Whether the block is solid (1 bit)
  * @param transparent Whether the block is transparent (1 bit)
  */
-typedef struct __attribute__((packed)) BlockData
+typedef struct __attribute__((packed, aligned(1))) BlockData
 {
-    BlockType Type :9;
-    uint8_t lightLevel : 4;
-    uint8_t gravity :1;
-    uint8_t solid :1;
-    uint8_t transparent :1;
+    uint16_t Type :9;
+    uint16_t lightLevel : 4;
+    uint16_t gravity :1;
+    uint16_t solid :1;
+    uint16_t transparent :1;
 } BlockData;
 
 /**
@@ -57,7 +59,8 @@ typedef struct __attribute__((packed)) BlockData
  * @param z Z coordinate of the block
  * @param block Block data for the update
  */
-typedef struct __attribute__((packed)) BlockUpdate
+
+typedef struct BlockUpdate
 {
     int x;
     int y;
@@ -74,20 +77,16 @@ typedef struct __attribute__((packed)) BlockUpdate
  */
 typedef struct __attribute__((packed)) ChunkVertical
 {
-    BlockData blocks[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];
-    unsigned int verticaly : 4;
-    unsigned int isOnlyBlockType : 1;
-    BlockType blockType : 9;
-
+    BlockData blocks[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];    
 } ChunkVertical;
 
 /**
  * @brief Chunk data structure containing 16 vertical chunks
  * @param *verticals Array of pointers to vertical chunks
  */
-typedef struct __attribute__((packed)) ChunkData
+typedef struct ChunkData
 {
-    ChunkVertical* verticals[WORLD_HEIGHT];
+    ChunkVertical* verticals[CHUNK_SIZE];
 } ChunkData;
 
 /**
@@ -100,8 +99,8 @@ typedef struct __attribute__((packed)) ChunkData
  */
 typedef struct __attribute__((packed)) ClientChunk
 {
-    ChunkData *data;
-    Mesh *mesh;
+    ChunkData data;
+    Mesh mesh;
     unsigned int loaded : 1;
     int x;
     int z;
@@ -115,9 +114,9 @@ typedef struct __attribute__((packed)) ClientChunk
  */
 typedef struct ChunkManager
 {
-    ClientChunk **chunks; // Tableau de pointeurs vers les chunks
-    int count;
     int capacity;
+    int count;
+    ClientChunk **chunks; // Tableau de pointeurs vers les chunks
 } ChunkManager;
 
 /**
@@ -138,32 +137,33 @@ typedef struct
 } Player;
 
 // Chunk manager initialization and cleanup
-ChunkManager InitChunkManager(int initialCapacity);
-void FreeChunkManager(ChunkManager manager);
+ChunkManager InitChunkManager   (int initialCapacity);
+void FreeChunkManager           (ChunkManager manager);
 
 // Chunk operations
-ClientChunk* CreateClientChunk(int x, int z);
-void FreeClientChunk(ClientChunk* chunk);
-ClientChunk* GetChunk(ChunkManager* manager, int x, int z);
-void AddChunk(ChunkManager* manager, ClientChunk* chunk);
-void RemoveChunk(ChunkManager* manager, int x, int z);
-Vector2 worldToChunkCoords(Vector3 worldPos);
-void unloadDistantChunks(ChunkManager* manager, Vector3 playerPos);
+ClientChunk* CreateClientChunk  (                       int x, int z);
+ClientChunk* GetChunk           (ChunkManager* manager, int x, int z);
+void RemoveChunk                (ChunkManager* manager, int index);
+void FreeClientChunk            (                       ClientChunk* chunk);
+void AddChunk                   (ChunkManager* manager, ClientChunk* chunk);
+void unloadDistantChunks        (ChunkManager* manager, Vector3 playerPos);
+Vector3 worldToChunkCoords      (                       Vector3 worldPos);
 
 // Chunk vertical operations
-ChunkVertical* CreateChunkVertical(unsigned int y);
-void FreeChunkVertical(ChunkVertical* vertical);
+ChunkVertical* CreateChunkVertical(void);
 
 // Block operations
-BlockData GetBlock(ChunkManager* manager, int x, int y, int z);
-void SetBlock(ChunkManager* manager, int x, int y, int z, BlockData block);
-void SetBlockType(ChunkManager* manager, int x, int y, int z, BlockType type);
+BlockData* GetBlock        (const ChunkManager* manager, int x, int y, int z);
+void SetBlock                   (ChunkManager* manager, int x, int y, int z, BlockData block);
 
 // Mesh generation
-void GenerateChunkMesh(ClientChunk* chunk);
-void UpdateChunkMesh(ClientChunk* chunk);
-void RenderChunks(ChunkManager* manager, Player* player);
+void GenerateChunkMesh          (ClientChunk* chunk);
+void UpdateChunkMesh            (ClientChunk* chunk);
+void RenderChunks               (ChunkManager* manager, Player* player);
 
 // Light propagation
-void PropagateLight(ChunkManager* manager, int x, int y, int z, uint8_t lightLevel);
-void UpdateLightLevels(ChunkManager* manager, int x, int z);
+void PropagateLight             (ChunkManager* manager, int x, int y, int z, uint8_t lightLevel);
+void UpdateLightLevels          (ChunkManager* manager, int x, int z);
+
+// Debugging
+void printChunkLoaded           (const ChunkManager* manager);

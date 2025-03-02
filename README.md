@@ -13,14 +13,15 @@ This project is a simple Minecraft-like game written in C using the Raylib libra
 
 ### Prerequisites
 
-- Raylib library
+- Raylib library (https://www.raylib.com/)
+- No_Build (nob) header (https://github.com/tsoding/nob.h)
 - A C compiler (e.g., cc)
 
 ### Building
 
 1. Clone the repository:
     ```sh
-    git clone https://github.com/yourusername/Minecraft.git
+    git clone https://github.com/AntoinePerrin25/Minecraft.git
     cd Minecraft
     ```
 
@@ -44,3 +45,4 @@ This project is a simple Minecraft-like game written in C using the Raylib libra
 ## Acknowledgements
 
 - [Raylib](https://www.raylib.com/) for the graphics library
+- [Tsoding](https://www.youtube.com/channel/UClKDXfS2yV5unz2nW5ifjCQ) for the No_Build header
