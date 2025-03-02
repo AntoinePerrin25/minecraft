@@ -21,6 +21,19 @@
 #define BLOCK_ID_MASK        0x01FF
 #define NBLOCK_ID_MASK       (~BLOCK_ID_MASK)
 
+// Vector of 3 ints
+typedef struct Vector3Int {
+    int x;                // Vector x component
+    int y;                // Vector y component
+    int z;                // Vector z component
+} Vector3Int;
+
+// Vector of 2 ints
+typedef struct Vector2Int {
+    int x;                // Vector x component
+    int y;                // Vector y component
+} Vector2Int;
+
 // Block type enumeration 2^9 = 512 possible block types
 typedef enum
 {
@@ -36,20 +49,20 @@ typedef enum
 } BlockType;
 
 /**
- * @brief Block data structure containing block type and properties
+ * @brief Block data structure containing block type and properties on 16 bits
  * @param Type Block type identifier (9 bits)
  * @param lightLevel Light level of the block (4 bits)
  * @param gravity Whether the block is affected by gravity (1 bit)
  * @param solid Whether the block is solid (1 bit)
- * @param transparent Whether the block is transparent (1 bit)
+ * @param visible Whether the block is visible (1 bit)
  */
 typedef struct __attribute__((packed, aligned(1))) BlockData
 {
-    uint16_t Type :9;
+    uint16_t Type       : 9;
     uint16_t lightLevel : 4;
-    uint16_t gravity :1;
-    uint16_t solid :1;
-    uint16_t transparent :1;
+    uint16_t gravity    : 1;
+    uint16_t solid      : 1;
+    uint16_t visible    : 1;
 } BlockData;
 
 /**
@@ -101,9 +114,9 @@ typedef struct __attribute__((packed)) ClientChunk
 {
     ChunkData data;
     Mesh mesh;
-    unsigned int loaded : 1;
     int x;
     int z;
+    unsigned int loaded : 1;
 } ClientChunk;
 
 /**
@@ -116,7 +129,7 @@ typedef struct ChunkManager
 {
     int capacity;
     int count;
-    ClientChunk **chunks; // Tableau de pointeurs vers les chunks
+    ClientChunk *chunks[1]; // Tableau de pointeurs vers les chunks
 } ChunkManager;
 
 /**
@@ -137,8 +150,8 @@ typedef struct
 } Player;
 
 // Chunk manager initialization and cleanup
-ChunkManager InitChunkManager   (int initialCapacity);
-void FreeChunkManager           (ChunkManager manager);
+ChunkManager* InitChunkManager   (int initialCapacity);
+void FreeChunkManager           (ChunkManager* manager);
 
 // Chunk operations
 ClientChunk* CreateClientChunk  (                       int x, int z);
@@ -146,15 +159,15 @@ ClientChunk* GetChunk           (ChunkManager* manager, int x, int z);
 void RemoveChunk                (ChunkManager* manager, int index);
 void FreeClientChunk            (                       ClientChunk* chunk);
 void AddChunk                   (ChunkManager* manager, ClientChunk* chunk);
-void unloadDistantChunks        (ChunkManager* manager, Vector3 playerPos);
-Vector3 worldToChunkCoords      (                       Vector3 worldPos);
+void unloadDistantChunks        (ChunkManager* manager, const Vector3* playerPos);
+Vector3Int worldToChunkCoords   (                       const Vector3* worldPos);
 
 // Chunk vertical operations
 ChunkVertical* CreateChunkVertical(void);
 
 // Block operations
-BlockData* GetBlock        (const ChunkManager* manager, int x, int y, int z);
-void SetBlock                   (ChunkManager* manager, int x, int y, int z, BlockData block);
+BlockData* GetBlock      (const ChunkManager* manager, int x, int y, int z);
+void SetBlock                  (ChunkManager* manager, int x, int y, int z, BlockData block);
 
 // Mesh generation
 void GenerateChunkMesh          (ClientChunk* chunk);
@@ -166,4 +179,4 @@ void PropagateLight             (ChunkManager* manager, int x, int y, int z, uin
 void UpdateLightLevels          (ChunkManager* manager, int x, int z);
 
 // Debugging
-void printChunkLoaded           (const ChunkManager* manager);
+void printChunkLoaded    (const ChunkManager* manager);

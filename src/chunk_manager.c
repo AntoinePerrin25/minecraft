@@ -1,36 +1,35 @@
-#include "raylib.h"
-#include "chunk_manager.h"
-#define NOB_IMPLEMENTATION
-#include "../nob.h"
 #include <math.h>
 
+#define NOB_IMPLEMENTATION
+#include "../nob.h"
+#include "chunk_manager.h"
+
+#include "raylib.h"
+
+
 // Chunk manager initialization and cleanup
-ChunkManager InitChunkManager(int initialCapacity)
+ChunkManager *InitChunkManager(int initialCapacity)
 {
-    ChunkManager manager;
-    manager.count = 0;
-    manager.capacity = initialCapacity;
-    manager.chunks = calloc(initialCapacity, sizeof(ClientChunk*));
-    if (!manager.chunks)
-    {
+    ChunkManager* manager = calloc(1, sizeof(*manager) + initialCapacity*(sizeof(ClientChunk*)));
+    if (!manager) {
         nob_log(3, "Failed to allocate chunk manager");
     }
-    else
-    {
+    else {
         nob_log(3, "Allocated chunk manager chunks\n");
-        return manager;
+        // Count already to 0
+        manager->capacity = initialCapacity;
     }
     return manager;
 }
 
-void FreeChunkManager(ChunkManager manager)
+void FreeChunkManager(ChunkManager* manager)
 {
-    for (int i = 0; i < manager.count; i++)
+    for (int i = 0; i < manager->capacity; i++)
     {
-        if (manager.chunks[i])
-            FreeClientChunk(manager.chunks[i]);
+        if (manager->chunks[i])
+            FreeClientChunk(manager->chunks[i]);
     }
-    free(manager.chunks);
+    free(manager);
     nob_log(3, "Freed chunk manager\n");
 }
 
@@ -38,29 +37,12 @@ void FreeChunkManager(ChunkManager manager)
 // Allocate memory for ClientChunk
 ClientChunk* CreateClientChunk(int x, int z)
 {
-    ClientChunk* chunk = malloc(sizeof(ClientChunk));
+    ClientChunk* chunk = calloc(1, sizeof(ClientChunk));
     if (!chunk) return NULL;
 
-    chunk->data = malloc(sizeof(ChunkData));
-    if (!chunk->data)
-    {
-        free(chunk);
-        chunk = NULL;
-        return NULL;
-    }
-
-    chunk->mesh = malloc(sizeof(Mesh));
-    if (!chunk->mesh)
-    {
-        free(chunk->data);
-        free(chunk);
-        chunk = NULL;
-        return NULL;
-    }
-    
     chunk->x = x;
     chunk->z = z;
-    chunk->loaded = 0;
+
     nob_log(3, "Created chunk at (%d, %d)\n", x, z);
 
     return chunk;
@@ -80,17 +62,15 @@ void FreeClientChunk(ClientChunk* chunk)
 
     nob_log(3, "Freeing chunk at (%d, %d)\n", x, z);
     
-    if (chunk->mesh)
+    nob_log(2, "FreeClientChunk : Mesh Need to be unloaded later\n");
+    UnloadMesh(chunk->mesh);
+    
+    for(int y = 0; y < CHUNK_SIZE; y++)
     {
-        UnloadMesh(*chunk->mesh);
-        free(chunk->mesh);
+        free(chunk->data.verticals[y]);
     }
-    if (chunk->data)
-    {
-        free(chunk->data);
-    }
+
     free(chunk);
-    chunk = NULL;
     nob_log(3, "Freed chunk at (%d, %d)\n", x, z);
     
 }
@@ -140,80 +120,96 @@ void AddChunk(ChunkManager* manager, ClientChunk* chunk)
     manager->count++;
 }
 
-void RemoveChunk(ChunkManager* manager, int x, int z)
+void RemoveChunk(ChunkManager* manager, int index)
 {
-    nob_log(3, "Removing chunk at (%d, %d)\n", x, z);
-    for (int i = 0; i < manager->capacity; i++)
-    {
-        if (manager->chunks[i] &&
-            manager->chunks[i]->x == x &&
-            manager->chunks[i]->z == z)
-        {
-            FreeClientChunk(manager->chunks[i]);
-            manager->chunks[i] = NULL;
-            manager->count--;
-            nob_log(3, "Chunk at (%d, %d) successfully removed\n", x, z);
-            return;
-        }
-    }
+    ClientChunk* chunk = manager->chunks[index];
+    int x = chunk->x;
+    int z = chunk->z;
+    nob_log(3, "Removing chunk at (%d, %d)\n", chunk->x, chunk->z);
+ 
+    FreeClientChunk(manager->chunks[index]);
+    manager->chunks[index] = NULL;
+    manager->count--;
+    nob_log(3, "Chunk at (%d, %d) successfully removed\n", x, z);
+    return;
 }
 
-Vector2 worldToChunkCoords(Vector3 worldPos)
+Vector3Int worldToChunkCoords(const Vector3* worldPos)
 {
-    return (Vector2) {floor(worldPos.x / CHUNK_SIZE), floor(worldPos.z / CHUNK_SIZE)};
+    return (Vector3Int) {worldPos->x / CHUNK_SIZE,
+                         worldPos->y / CHUNK_SIZE,
+                         worldPos->z / CHUNK_SIZE};
 }
 
-void unloadDistantChunks(ChunkManager* manager, Vector3 playerPos)
+void unloadDistantChunks(ChunkManager* manager, const Vector3* playerPos)
 {
-    int playerChunkX = (int)floor(playerPos.x / CHUNK_SIZE);
-    int playerChunkZ = (int)floor(playerPos.z / CHUNK_SIZE);
+    Vector3Int playerChunk = worldToChunkCoords(playerPos);
     
-    for (int i = 0; i < manager->count; i++)
+    for (int index = 0; index < manager->capacity; index++)
     {
-        if (!manager->chunks[i] || !manager->chunks[i]->loaded) continue;
+        if (!manager->chunks[index] || !manager->chunks[index]->loaded) continue;
         
-        int dx = abs(manager->chunks[i]->x - playerChunkX);
-        int dz = abs(manager->chunks[i]->z - playerChunkZ);
+        int dx = abs(manager->chunks[index]->x - playerChunk.x);
+        int dz = abs(manager->chunks[index]->z - playerChunk.z);
         
         if (dx > RENDER_DISTANCE || dz > RENDER_DISTANCE)
         {
             // Free the resources of the chunk
-            RemoveChunk(manager, manager->chunks[i]->x, manager->chunks[i]->z);
+            RemoveChunk(manager, index);
         }
     }
+    printf("Unloaded Chunks at %d, %d\n", playerChunk.x, playerChunk.z);
 }
 
 // Chunk vertical operations
-ChunkVertical* CreateChunkVertical(unsigned int y)
+ChunkVertical* CreateChunkVertical(void)
 {
-    ChunkVertical* vertical = malloc(sizeof(ChunkVertical));
-    if (!vertical) return NULL;
-
-    vertical->verticaly = y;
-    vertical->isOnlyBlockType = 1;
-    vertical->blockType = BLOCK_AIR;
-
-    return vertical;
+    return calloc(1, sizeof(ChunkVertical));
 }
 
-void FreeChunkVertical(ChunkVertical* vertical)
+
+// Block operations
+BlockData* GetBlock(const ChunkManager* manager, int x, int y, int z)
 {
-    if (vertical) {
-        free(vertical);
-    }
+    Vector3Int chunkpos = worldToChunkCoords(&(Vector3) {x, y ,z});
     
-    vertical = NULL;
+    for (int i = 0; i < manager->capacity; i++)
+    {
+        if (manager->chunks[i] && manager->chunks[i]->x == chunkpos.x && manager->chunks[i]->z == chunkpos.z)
+        {
+            ChunkVertical *vertical = manager->chunks[i]->data.verticals[chunkpos.y];
+            if (vertical)
+            {
+                return &vertical->blocks[x % CHUNK_SIZE][y % CHUNK_SIZE][z % CHUNK_SIZE];
+            }
+        }
+    }
+    return NULL;
 }
 
-void reloadMesh(ClientChunk* chunk, Mesh mesh)
+void SetBlock(ChunkManager* manager, int x, int y, int z, BlockData block)
 {
-    if (!chunk) return;
-    if (!chunk->data) return;
-    if (!chunk->mesh) return;
+    BlockData* blockData = GetBlock(manager, x, y, z);
+    if (blockData)
+    {
+        *blockData = block;
+    }
+}
 
-    // Unload the mesh
-    UnloadMesh(*chunk->mesh);
 
-    // Allocate memory for the mesh
-    *chunk->mesh = mesh;
+
+
+
+void printChunkLoaded(const ChunkManager* manager)
+{
+    printf("=====================\n");
+    printf("Loaded Chunks:\n");
+    for (int i = 0; i < manager->capacity; i++)
+    {
+        if (manager->chunks[i])
+        {
+            printf("\tChunk at (%2d, %2d) is loaded @%p\n", manager->chunks[i]->x, manager->chunks[i]->z, manager->chunks[i]);
+        }
+    }
+    printf("=====================\n");
 }
