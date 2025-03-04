@@ -1,7 +1,9 @@
+#ifndef CHUNK_MANAGER_H
+#define CHUNK_MANAGER_H
+
 #include <stdint.h>
 
 #include <raylib/raylib.h>
-
 
 #define MAX_LIGHT_LEVEL 16
 #define CHUNK_SIZE 16
@@ -21,6 +23,12 @@
 #define BLOCK_ID_MASK        0x01FF
 #define NBLOCK_ID_MASK       (~BLOCK_ID_MASK)
 
+// Vector of 2 ints
+typedef struct Vector2Int {
+    int x;                // Vector x component
+    int y;                // Vector y component
+} Vector2Int;
+
 // Vector of 3 ints
 typedef struct Vector3Int {
     int x;                // Vector x component
@@ -28,11 +36,6 @@ typedef struct Vector3Int {
     int z;                // Vector z component
 } Vector3Int;
 
-// Vector of 2 ints
-typedef struct Vector2Int {
-    int x;                // Vector x component
-    int y;                // Vector y component
-} Vector2Int;
 
 // Block type enumeration 2^9 = 512 possible block types
 typedef enum
@@ -75,11 +78,10 @@ typedef struct __attribute__((packed, aligned(1))) BlockData
 
 typedef struct BlockUpdate
 {
-    int x;
-    int y;
-    int z;
+    Vector3Int blockpos;
     BlockData block;
 } BlockUpdate;
+
 
 /**
  * @brief Vertical chunk structure containing 16x16x16 blocks
@@ -90,7 +92,7 @@ typedef struct BlockUpdate
  */
 typedef struct __attribute__((packed)) ChunkVertical
 {
-    BlockData blocks[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];    
+    BlockData blocks[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];
 } ChunkVertical;
 
 /**
@@ -100,7 +102,25 @@ typedef struct __attribute__((packed)) ChunkVertical
 typedef struct ChunkData
 {
     ChunkVertical* verticals[CHUNK_SIZE];
+    BlockType blockType[CHUNK_SIZE];
 } ChunkData;
+
+typedef struct FullChunk
+{
+    BlockData blocks[CHUNK_SIZE2][CHUNK_SIZE][CHUNK_SIZE];  // 256 * (16 * 16)
+} FullChunk;
+
+/**
+ * @brief Structure representing an update to a chunk's state
+ * @param chunkPos Position of the chunk being updated
+ * @param chunk Data of the chunk being updated
+ */
+typedef struct ChunkUpdate
+{
+    Vector3Int chunkPos;
+    ChunkData chunk;
+} ChunkUpdate;
+
 
 /**
  * @brief Client-side chunk structure containing rendering data
@@ -161,6 +181,7 @@ void FreeClientChunk            (                       ClientChunk* chunk);
 void AddChunk                   (ChunkManager* manager, ClientChunk* chunk);
 void unloadDistantChunks        (ChunkManager* manager, const Vector3* playerPos);
 Vector3Int worldToChunkCoords   (                       const Vector3* worldPos);
+ChunkData CompressChunk         (const FullChunk* fullChunk);  // New function
 
 // Chunk vertical operations
 ChunkVertical* CreateChunkVertical(void);
@@ -180,3 +201,5 @@ void UpdateLightLevels          (ChunkManager* manager, int x, int z);
 
 // Debugging
 void printChunkLoaded    (const ChunkManager* manager);
+
+#endif // CHUNK_MANAGER_H
