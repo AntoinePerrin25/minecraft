@@ -1,4 +1,4 @@
-/* nob - v1.13.1 - Public Domain - https://github.com/tsoding/nob.h
+/* nob - v1.15.0 - Public Domain - https://github.com/tsoding/nob.h
 
    This library is the next generation of the [NoBuild](https://github.com/tsoding/nobuild) idea.
 
@@ -158,7 +158,7 @@
       from other languages (for whatever reason).
 
       If only few specific names create conflicts for you, you can just #undef those names after the
-      `#include <nob.h>` since they are macros anyway.
+      `#include <nob.h>` since they are macros anyway.
 */
 
 #ifndef NOB_H_
@@ -220,7 +220,6 @@
     (NOB_ASSERT((size_t)index < NOB_ARRAY_LEN(array)), array[(size_t)index])
 
 typedef enum {
-    NOB_DEBUG,
     NOB_INFO,
     NOB_WARNING,
     NOB_ERROR,
@@ -309,6 +308,14 @@ bool nob_delete_file(const char *path);
         }                                                                                  \
         (da)->count = (new_size);                                                          \
     } while (0)
+
+#define nob_da_last(da) (da)->items[(NOB_ASSERT((da)->count > 0), (da)->count-1)]
+#define nob_da_remove_unordered(da, i)               \
+    do {                                             \
+        size_t j = (i);                              \
+        NOB_ASSERT(j < (da)->count);                 \
+        (da)->items[j] = (da)->items[--(da)->count]; \
+    } while(0)
 
 typedef struct {
     char *items;
@@ -511,6 +518,7 @@ typedef struct {
 const char *nob_temp_sv_to_cstr(Nob_String_View sv);
 
 Nob_String_View nob_sv_chop_by_delim(Nob_String_View *sv, char delim);
+Nob_String_View nob_sv_chop_left(Nob_String_View *sv, size_t n);
 Nob_String_View nob_sv_trim(Nob_String_View sv);
 Nob_String_View nob_sv_trim_left(Nob_String_View sv);
 Nob_String_View nob_sv_trim_right(Nob_String_View sv);
@@ -584,10 +592,9 @@ struct dirent
 
 typedef struct DIR DIR;
 
-static DIR *opendir(const char *dirpath);
-static struct dirent *readdir(DIR *dirp);
-static int closedir(DIR *dirp);
-
+extern DIR *opendir(const char *dirpath);
+extern struct dirent *readdir(DIR *dirp);
+extern int closedir(DIR *dirp);
 #endif // _WIN32
 // minirent.h HEADER END ////////////////////////////////////////
 
@@ -684,6 +691,12 @@ void nob__go_rebuild_urself(int argc, char **argv, const char *source_path, ...)
         nob_rename(old_binary_path, binary_path);
         exit(1);
     }
+#ifdef NOB_EXPERIMENTAL_DELETE_OLD
+    // TODO: this is an experimental behavior behind a compilation flag.
+    // Once it is confirmed that it does not cause much problems on both POSIX and Windows
+    // we may turn it on by default.
+    nob_delete_file(old_binary_path);
+#endif // NOB_EXPERIMENTAL_DELETE_OLD
 
     nob_cmd_append(&cmd, binary_path);
     nob_da_append_many(&cmd, argv, argc);
@@ -1105,9 +1118,6 @@ void nob_log(Nob_Log_Level level, const char *fmt, ...)
     if (level < nob_minimal_log_level) return;
 
     switch (level) {
-    case NOB_DEBUG:
-        fprintf(stderr, "[DEBUG] ");
-        break;
     case NOB_INFO:
         fprintf(stderr, "[INFO] ");
         break;
@@ -1521,6 +1531,20 @@ Nob_String_View nob_sv_chop_by_delim(Nob_String_View *sv, char delim)
     return result;
 }
 
+Nob_String_View nob_sv_chop_left(Nob_String_View *sv, size_t n)
+{
+    if (n > sv->count) {
+        n = sv->count;
+    }
+
+    Nob_String_View result = nob_sv_from_parts(sv->data, n);
+
+    sv->data  += n;
+    sv->count -= n;
+
+    return result;
+}
+
 Nob_String_View nob_sv_from_parts(const char *data, size_t count)
 {
     Nob_String_View sv;
@@ -1664,7 +1688,7 @@ struct DIR
     struct dirent *dirent;
 };
 
-DIR *opendir(const char *dirpath)
+extern DIR *opendir(const char *dirpath)
 {
     NOB_ASSERT(dirpath);
 
@@ -1692,7 +1716,7 @@ fail:
     return NULL;
 }
 
-struct dirent *readdir(DIR *dirp)
+extern struct dirent *readdir(DIR *dirp)
 {
     NOB_ASSERT(dirp);
 
@@ -1721,7 +1745,7 @@ struct dirent *readdir(DIR *dirp)
     return dirp->dirent;
 }
 
-int closedir(DIR *dirp)
+extern int closedir(DIR *dirp)
 {
     NOB_ASSERT(dirp);
 
@@ -1787,6 +1811,8 @@ int closedir(DIR *dirp)
         #define da_free nob_da_free
         #define da_append_many nob_da_append_many
         #define da_resize nob_da_resize
+        #define da_last nob_da_last
+        #define da_remove_unordered nob_da_remove_unordered
         #define String_Builder Nob_String_Builder
         #define read_entire_file nob_read_entire_file
         #define sb_append_buf nob_sb_append_buf
@@ -1834,6 +1860,7 @@ int closedir(DIR *dirp)
         #define String_View Nob_String_View
         #define temp_sv_to_cstr nob_temp_sv_to_cstr
         #define sv_chop_by_delim nob_sv_chop_by_delim
+        #define sv_chop_left nob_sv_chop_left
         #define sv_trim nob_sv_trim
         #define sv_trim_left nob_sv_trim_left
         #define sv_trim_right nob_sv_trim_right
@@ -1850,6 +1877,10 @@ int closedir(DIR *dirp)
 /*
    Revision history:
 
+     1.15.0 (2025-03-03) Add nob_sv_chop_left()
+     1.14.1 (2025-03-02) Add NOB_EXPERIMENTAL_DELETE_OLD flag that enables deletion of nob.old in Go Rebuild Urself™ Technology
+     1.14.0 (2025-02-17) Add nob_da_last()
+                         Add nob_da_remove_unordered()
      1.13.1 (2025-02-17) Fix segfault in nob_delete_file() (By @SileNce5k)
      1.13.0 (2025-02-11) Add nob_da_resize() (By @satchelfrost)
      1.12.0 (2025-02-04) Add nob_delete_file()
