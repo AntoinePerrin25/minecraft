@@ -135,7 +135,7 @@ static bool worldManager_setBlock(WorldManager* wm, int x, int y, int z, BlockTy
     if (y == 0) return false;
     
     // Modifier le block
-    chunk->blocks[localX][y][localZ] = type;
+    chunk->blocks[localX][y][localZ].Type = type;
     CachedChunk* cached = findChunk(wm, chunkX, chunkZ);
     if (cached) cached->modified = true;
     

@@ -13,11 +13,10 @@ int main(int argc, char **argv)
     {
         Nob_Cmd cmd = {0};
         nob_cmd_append(&cmd, "gcc");
-        nob_cmd_append(&cmd, "-Wall", "-Wextra", "-O2");
-        nob_cmd_append(&cmd, "-I./include");
-        nob_cmd_append(&cmd, "./src/main.c");
+        nob_cmd_append(&cmd, "-Wall", "-Wextra", "-O3");
+        nob_cmd_append(&cmd, "-I./include", "-L./lib");
+        nob_cmd_append(&cmd, "./src/main.c", "./src/texture_manager.c");
         nob_cmd_append(&cmd, "-o", "./build/game");
-        nob_cmd_append(&cmd, "-L./lib");
         nob_cmd_append(&cmd, "-lraylib", "-lenet", "-lopengl32", "-lgdi32", "-lwinmm", "-lws2_32");
         if (!nob_cmd_run_sync(cmd)) return 1;
     }
@@ -26,11 +25,10 @@ int main(int argc, char **argv)
     {
         Nob_Cmd cmd = {0};
         nob_cmd_append(&cmd, "gcc");
-        nob_cmd_append(&cmd, "-Wall", "-Wextra", "-O2");
-        nob_cmd_append(&cmd, "-I./include");
+        nob_cmd_append(&cmd, "-Wall", "-Wextra", "-O3");
+        nob_cmd_append(&cmd, "-I./include", "-L./lib");
         nob_cmd_append(&cmd, "./src/server.c");
         nob_cmd_append(&cmd, "-o", "./build/server");
-        nob_cmd_append(&cmd, "-L./lib");
         nob_cmd_append(&cmd, "-lenet", "-lws2_32");
         if (!nob_cmd_run_sync(cmd)) return 1;
     }

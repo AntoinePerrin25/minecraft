@@ -97,15 +97,15 @@ static void generateChunk(ChunkData* chunk, int chunkX, int chunkZ, int seed) {
             
             for (int y = 0; y < WORLD_HEIGHT; y++) {
                 if (y == 0) {
-                    chunk->blocks[x][y][z] = BLOCK_BEDROCK;
+                    chunk->blocks[x][y][z].Type = BLOCK_BEDROCK;
                 } else if (y < height - 5) {
-                    chunk->blocks[x][y][z] = BLOCK_STONE;
+                    chunk->blocks[x][y][z].Type = BLOCK_STONE;
                 } else if (y < height - 1) {
-                    chunk->blocks[x][y][z] = BLOCK_DIRT;
+                    chunk->blocks[x][y][z].Type = BLOCK_DIRT;
                 } else if (y == height - 1) {
-                    chunk->blocks[x][y][z] = BLOCK_GRASS;
+                    chunk->blocks[x][y][z].Type = BLOCK_GRASS;
                 } else {
-                    chunk->blocks[x][y][z] = BLOCK_AIR;
+                    chunk->blocks[x][y][z].Type = BLOCK_AIR;
                 }
             }
         }

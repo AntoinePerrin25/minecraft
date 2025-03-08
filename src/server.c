@@ -71,7 +71,7 @@ static int getHeightAt(WorldManager* wm, int x, int z) {
     
     // Rechercher le premier bloc non-air du haut vers le bas
     for (int y = WORLD_HEIGHT - 1; y >= 0; y--) {
-        if (chunk->blocks[localX][y][localZ] != BLOCK_AIR) {
+        if (chunk->blocks[localX][y][localZ].Type != BLOCK_AIR) {
             return y + 1;
         }
     }
@@ -170,7 +170,7 @@ void handleChunkRequest(rnetPeer* peer, int chunkX, int chunkZ) {
 
 void handleBlockUpdate(rnetPeer* peer, BlockUpdate* update) {
     // Modifier le block dans le monde
-    if (worldManager_setBlock(world, update->x, update->y, update->z, update->type)) {
+    if (worldManager_setBlock(world, update->x, update->y, update->z, update->block.Type)) {
         // Diffuser la mise à jour à tous les joueurs
         Packet packet = {
             .type = PACKET_BLOCK_UPDATE,

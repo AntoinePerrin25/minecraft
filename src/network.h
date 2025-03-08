@@ -2,6 +2,9 @@
 #define NETWORK_H
 
 #include <stdbool.h>
+#include <stdint.h>
+
+#include "chunk_mesh.h"
 
 // Constantes réseau
 #define MAX_PLAYERS 32
@@ -13,13 +16,19 @@
 // Constantes du monde
 #define CHUNK_SIZE 16
 #define WORLD_HEIGHT 256
-#define RENDER_DISTANCE 8
+#define RENDER_DISTANCE 3
 #define MAX_LOADED_CHUNKS 100
 #define CHUNK_LOAD_DISTANCE 3
 
 typedef struct {
     float x, y, z;
 } Vec3;
+
+
+typedef struct {
+    int x, y, z;
+    BlockData block;
+} BlockUpdate;
 
 typedef struct {
     Vec3 position;
@@ -29,25 +38,6 @@ typedef struct {
     bool connected;
     int id;
 } NetworkPlayer;
-
-typedef enum {
-    BLOCK_AIR,
-    BLOCK_BEDROCK,
-    BLOCK_STONE,
-    BLOCK_DIRT,
-    BLOCK_GRASS
-} BlockType;
-
-typedef struct {
-    int x, y, z;
-    BlockType type;
-} BlockUpdate;
-
-// Structure pour stocker un chunk
-typedef struct {
-    int x, z;  // Position du chunk dans le monde
-    BlockType blocks[CHUNK_SIZE][WORLD_HEIGHT][CHUNK_SIZE];
-} ChunkData;
 
 typedef enum {
     PACKET_CONNECT,
@@ -70,5 +60,7 @@ typedef struct {
         BlockUpdate blockUpdate;
     };
 } Packet;
+
+
 
 #endif // NETWORK_H
