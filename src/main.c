@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "old_chunk_mesh.h"
+#include "chunk_manager.h"
 
 // Définir NETWORK_IMPL après tous les autres includes
 #define NETWORK_IMPL
@@ -41,13 +42,6 @@ typedef struct {
     int id;
 } Player;
 
-typedef struct {
-    int x;
-    int z;
-    ChunkData data;
-    ChunkMesh mesh;
-    unsigned int loaded:1;
-} ClientChunk;
 
 // État réseau
 NetworkPlayer otherPlayers[MAX_PLAYERS] = {0};
