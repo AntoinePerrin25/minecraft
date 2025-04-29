@@ -45,7 +45,7 @@ int main(int argc, char **argv)
         nob_cmd_append(&cmd, "gcc");
         nob_cmd_append(&cmd, "-Wall", "-Wextra", "-O2");
         nob_cmd_append(&cmd, "-I./include");
-        nob_cmd_append(&cmd, "./src/server.c");
+        nob_cmd_append(&cmd, "./src/server.c", "./src/world_manager.c", "./src/chunk_manager.c");
         nob_cmd_append(&cmd, "-o", "./build/server");
         nob_cmd_append(&cmd, "-L./lib");
         nob_cmd_append(&cmd, "-lenet", "-lws2_32");

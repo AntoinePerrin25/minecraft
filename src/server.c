@@ -1,6 +1,8 @@
 #ifdef _WIN32
 #define WINDOWS_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#define NOGDI
+#define NOUSER
 #include <winsock2.h>  // Doit être inclus avant windows.h
 #include <windows.h>
 #else
@@ -30,7 +32,7 @@ static ServerStats stats = {0};
 static double lastDebugPrint = 0;
 
 // Fonction portable pour obtenir le temps en secondes
-static double GetTime(void) {
+static double My_GetTime(void) {
 #ifdef _WIN32
     static LARGE_INTEGER frequency;
     static int initialized = 0;
@@ -71,7 +73,7 @@ static int getHeightAt(WorldManager* wm, int x, int z) {
     
     // Rechercher le premier bloc non-air du haut vers le bas
     for (int y = WORLD_HEIGHT - 1; y >= 0; y--) {
-        if (chunk->blocks[localX][y][localZ] != BLOCK_AIR) {
+        if (chunk->verticals[y]->blocks[localX][y % 16][localZ].Type != BLOCK_AIR) {
             return y + 1;
         }
     }
@@ -170,7 +172,7 @@ void handleChunkRequest(rnetPeer* peer, int chunkX, int chunkZ) {
 
 void handleBlockUpdate(rnetPeer* peer, BlockUpdate* update) {
     // Modifier le block dans le monde
-    if (worldManager_setBlock(world, update->x, update->y, update->z, update->type)) {
+    if (worldManager_setBlock(world, update->blockpos.x, update->blockpos.y, update->blockpos.z, update->block)) {
         // Diffuser la mise à jour à tous les joueurs
         Packet packet = {
             .type = PACKET_BLOCK_UPDATE,
@@ -210,12 +212,12 @@ int main(void) {
     }
     printf("Chunks pre-loaded!\n");
 
-    double lastTick = GetTime();
-    lastDebugPrint = GetTime();
+    double lastTick = My_GetTime();
+    lastDebugPrint = My_GetTime();
     
     // Boucle principale du serveur
     while (1) {
-        double currentTime = GetTime();
+        double currentTime = My_GetTime();
         
         // Afficher les statistiques périodiquement
         if (currentTime - lastDebugPrint >= SERVER_PRINT_DEBUG_DELAY / 1000.0) {

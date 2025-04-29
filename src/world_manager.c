@@ -4,12 +4,11 @@
 #include <sys/stat.h>
 
 
-#include "../nob.h"
-
-#define NOB_LEVEL_DEF NOB_INFO
+#define nob_log(level, fmt, ...) printf(fmt "\n", ##__VA_ARGS__)
 
 #include "world_manager.h"
 #include "world.h"
+#include "chunk_manager.h"
 
 // Initialise le gestionnaire de monde
 WorldManager* worldManager_create(int seed) {

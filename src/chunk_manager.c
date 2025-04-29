@@ -7,6 +7,7 @@
 #include "../nob.h"
 #define NOB_LEVEL_DEF NOB_INFO
 
+#define nob_log(level, fmt, ...) printf(fmt "\n", ##__VA_ARGS__)
 
 // Chunk manager initialization and cleanup
 ChunkManager *InitChunkManager(int initialCapacity)
@@ -64,7 +65,7 @@ void FreeClientChunk(ClientChunk* chunk)
     nob_log(NOB_LEVEL_DEF, "Freeing chunk at (%d, %d)\n", x, z);
     
     nob_log(NOB_WARNING, "FreeClientChunk : Mesh Need to be unloaded later\n");
-    UnloadMesh(chunk->mesh);
+    //UnloadMesh(chunk->mesh);
     
     for(int y = 0; y < CHUNK_SIZE; y++)
     {

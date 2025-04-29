@@ -16,7 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include "chunk_mesh.h"
+#include "old_chunk_mesh.h"
 
 // Définir NETWORK_IMPL après tous les autres includes
 #define NETWORK_IMPL
@@ -24,7 +24,7 @@
 
 #define CHUNK_SIZE 16
 #define WORLD_HEIGHT 256
-#define RENDER_DISTANCE 8
+#define RENDER_DISTANCE 2
 
 #define WINDOWS_FACTOR 16/9
 #define WINDOWS_WIDTH 405
@@ -42,9 +42,11 @@ typedef struct {
 } Player;
 
 typedef struct {
+    int x;
+    int z;
     ChunkData data;
     ChunkMesh mesh;
-    bool loaded;
+    unsigned int loaded:1;
 } ClientChunk;
 
 // État réseau
@@ -68,17 +70,14 @@ static inline Vec3 Vector3ToVec3(Vector3 v) {
 
 // Fonction qui sera utilisée pour générer le terrain
 void generateChunk(ChunkData *chunk, int chunkX, int chunkZ) {
-    chunk->x = chunkX;
-    chunk->z = chunkZ;
-    
     // Pour l'instant, générons un terrain plat simple
     for (int x = 0; x < CHUNK_SIZE; x++) {
         for (int z = 0; z < CHUNK_SIZE; z++) {
             for (int y = 0; y < WORLD_HEIGHT; y++) {
                 if (y < 64) {
-                    chunk->blocks[x][y][z] = BLOCK_DIRT;
+                    chunk->verticals[y/16]->blocks[x][y % 16][z].Type = BLOCK_DIRT;
                 } else {
-                    chunk->blocks[x][y][z] = BLOCK_AIR;
+                    chunk->verticals[y/16]->blocks[x][y % 16][z].Type = BLOCK_AIR;
                 }
             }
         }
@@ -88,7 +87,7 @@ void generateChunk(ChunkData *chunk, int chunkX, int chunkZ) {
 // Trouver un chunk chargé
 static ClientChunk* findChunk(int x, int z) {
     for (int i = 0; i < loadedChunkCount; i++) {
-        if (loadedChunks[i].loaded && loadedChunks[i].data.x == x && loadedChunks[i].data.z == z) {
+        if (loadedChunks[i].loaded && loadedChunks[i].x == x && loadedChunks[i].z == z) {
             return &loadedChunks[i];
         }
     }
@@ -112,8 +111,8 @@ static void unloadDistantChunks(Vector3 playerPos) {
     for (int i = 0; i < loadedChunkCount; i++) {
         if (!loadedChunks[i].loaded) continue;
         
-        int dx = abs(loadedChunks[i].data.x - playerChunkX);
-        int dz = abs(loadedChunks[i].data.z - playerChunkZ);
+        int dx = abs(loadedChunks[i].x - playerChunkX);
+        int dz = abs(loadedChunks[i].z - playerChunkZ);
         
         if (dx > CHUNK_LOAD_DISTANCE + 2 || dz > CHUNK_LOAD_DISTANCE + 2) {
             // Libérer les ressources du chunk
@@ -145,9 +144,9 @@ static void updateLoadedChunks(Vector3 playerPos) {
 }
 
 // Ajouter un nouveau chunk aux chunks chargés
-static void addChunk(ChunkData* chunk) {
+static void addChunk(ChunkData* chunk, int chunkX, int chunkZ) {
     // Si le chunk existe déjà, le mettre à jour
-    ClientChunk* existing = findChunk(chunk->x, chunk->z);
+    ClientChunk* existing = findChunk(chunkX, chunkZ);
     if (existing) {
         existing->data = *chunk;
         existing->mesh.dirty = true;
@@ -199,7 +198,7 @@ static bool worldToBlockCoords(Vector3 worldPos, Vector3 direction, float maxDis
         ClientChunk* chunk = findChunk(chunkX, chunkZ);
         if (chunk) {
             if (y >= 0 && y < WORLD_HEIGHT && 
-                chunk->data.blocks[localX][y][localZ] != BLOCK_AIR) {
+                chunk->data.verticals[y/16]->blocks[localX][y%16][localZ].Type != BLOCK_AIR) {
                 *outX = x;
                 *outY = y;
                 *outZ = z;
@@ -273,15 +272,15 @@ void updateNetworkState(Player* player) {
                 break;
 
             case PACKET_CHUNK_DATA:
-                addChunk(&gamePacket->chunk);
+                addChunk(&gamePacket->chunk, gamePacket->chunkX, gamePacket->chunkZ);
                 break;
             
             case PACKET_BLOCK_UPDATE: {
                 BlockUpdate* update = &gamePacket->blockUpdate;
-                int chunkX = update->x / CHUNK_SIZE;
-                int chunkZ = update->z / CHUNK_SIZE;
-                int localX = update->x % CHUNK_SIZE;
-                int localZ = update->z % CHUNK_SIZE;
+                int chunkX = update->blockpos.x / CHUNK_SIZE;
+                int chunkZ = update->blockpos.z / CHUNK_SIZE;
+                int localX = update->blockpos.x % CHUNK_SIZE;
+                int localZ = update->blockpos.z % CHUNK_SIZE;
                 
                 if (localX < 0) {
                     localX += CHUNK_SIZE;
@@ -294,7 +293,7 @@ void updateNetworkState(Player* player) {
                 
                 ClientChunk* chunk = findChunk(chunkX, chunkZ);
                 if (chunk) {
-                    chunk->data.blocks[localX][update->y][localZ] = update->type;
+                    chunk->data.verticals[update->blockpos.y/16]->blocks[localX][update->blockpos.y%16][localZ].Type = (BlockType) update->block.Type;
                 }
                 break;
             }
@@ -445,11 +444,18 @@ int main(void) {
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
             int blockX, blockY, blockZ;
             if (worldToBlockCoords(player.position, direction, 5.0f, &blockX, &blockY, &blockZ)) {
-                BlockUpdate update = {
-                    .x = blockX,
-                    .y = blockY,
-                    .z = blockZ,
-                    .type = BLOCK_AIR
+                BlockUpdate update = {{
+                        .x = blockX,
+                        .y = blockY,
+                        .z = blockZ
+                    },
+                    {
+                        .Type = BLOCK_AIR,
+                        .lightLevel = 0,
+                        .gravity    = 0,
+                        .solid      = 0,
+                        .visible    = 0
+                    }
                 };
                 
                 Packet packet = {
@@ -496,9 +502,9 @@ int main(void) {
                     
                     // Calculer la position du chunk dans le monde
                     Vector3 chunkPos = {
-                        loadedChunks[i].data.x * CHUNK_SIZE,
+                        loadedChunks[i].x * CHUNK_SIZE,
                         0,
-                        loadedChunks[i].data.z * CHUNK_SIZE
+                        loadedChunks[i].z * CHUNK_SIZE
                     };
                     
                     // Dessiner le mesh du chunk

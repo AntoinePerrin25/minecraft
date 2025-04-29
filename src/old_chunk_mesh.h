@@ -33,7 +33,7 @@ static bool isFaceVisible(ChunkData *chunk, int x, int y, int z, int dx, int dy,
         return true;
     }
 
-    return chunk->blocks[x + dx][y + dy][z + dz] == BLOCK_AIR;
+    return chunk->verticals[y / 16]->blocks[x + dx][y + dy][z + dz].Type == BLOCK_AIR;
 }
 
 // Ajoute une face au mesh
@@ -175,7 +175,7 @@ static void updateChunkMesh(ChunkMesh *mesh, ChunkData *chunk)
         {
             for (int z = 0; z < CHUNK_SIZE; z++)
             {
-                BlockType block = chunk->blocks[x][y][z];
+                BlockType block = chunk->verticals[y / 16]->blocks[x][y][z].Type;
                 if (block == BLOCK_AIR)
                     continue;
 
