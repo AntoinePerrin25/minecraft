@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include <raylib/raylib.h>
+//#include "chunk_mesh.h"
 
 #define MAX_LIGHT_LEVEL 16
 #define CHUNK_SIZE 16
@@ -27,7 +28,7 @@
 typedef struct Vector2Int {
     int x;                // Vector x component
     int y;                // Vector y component
-} Vector2Int;
+}Vector2Int;
 
 // Vector of 3 ints
 typedef struct Vector3Int {
@@ -70,41 +71,19 @@ typedef struct __attribute__((packed, aligned(1))) BlockData
 
 /**
  * @brief Structure representing a block update event
- * @param x X coordinate of the block
- * @param y Y coordinate of the block
- * @param z Z coordinate of the block
+ * @param blockpos x, y, z
  * @param block Block data for the update
  */
-
 typedef struct BlockUpdate
 {
     Vector3Int blockpos;
     BlockData block;
 } BlockUpdate;
 
-
 /**
- * @brief Vertical chunk structure containing 16x16x16 blocks
- * @param blocks 3D array of block data
- * @param verticaly Vertical position of the chunk (4 bits)
- * @param isOnlyBlockType Flag indicating if chunk contains only one block type (1 bit)
- * @param blockType Type of block if chunk contains only one type (9 bits)
+ * @brief Full chunk structure containing all blocks (16x16x256)
+ * @param blocks 3D array of block data (256 * 16 * 16)
  */
-typedef struct __attribute__((packed)) ChunkVertical
-{
-    BlockData blocks[CHUNK_SIZE][CHUNK_SIZE][CHUNK_SIZE];
-} ChunkVertical;
-
-/**
- * @brief Chunk data structure containing 16 vertical chunks
- * @param *verticals Array of pointers to vertical chunks
- */
-typedef struct ChunkData
-{
-    ChunkVertical* verticals[CHUNK_SIZE];
-    BlockType blockType[CHUNK_SIZE];
-} ChunkData;
-
 typedef struct FullChunk
 {
     BlockData blocks[CHUNK_SIZE2][CHUNK_SIZE][CHUNK_SIZE];  // 256 * (16 * 16)
@@ -118,22 +97,21 @@ typedef struct FullChunk
 typedef struct ChunkUpdate
 {
     Vector3Int chunkPos;
-    ChunkData chunk;
+    FullChunk chunk;  // Changed from ChunkData to FullChunk
 } ChunkUpdate;
-
 
 /**
  * @brief Client-side chunk structure containing rendering data
- * @param *data Pointer to chunk data
- * @param *mesh Pointer to chunk mesh
+ * @param chunk Full chunk data
+ * @param mesh Chunk mesh for rendering
  * @param loaded Flag indicating if chunk is loaded
  * @param x X coordinate of chunk in world
  * @param z Z coordinate of chunk in world
  */
 typedef struct __attribute__((packed)) ClientChunk
 {
-    ChunkData data;
-    Mesh mesh;
+    FullChunk chunk;  // Changed from ChunkData to FullChunk
+    ChunkMesh mesh;
     int x;
     int z;
     unsigned int loaded : 1;
@@ -181,14 +159,11 @@ void FreeClientChunk            (                       ClientChunk* chunk);
 void AddChunk                   (ChunkManager* manager, ClientChunk* chunk);
 void unloadDistantChunks        (ChunkManager* manager, const Vector3* playerPos);
 Vector3Int worldToChunkCoords   (                       const Vector3* worldPos);
-ChunkData CompressChunk         (const FullChunk* fullChunk);  // New function
-
-// Chunk vertical operations
-ChunkVertical* CreateChunkVertical(void);
 
 // Block operations
 BlockData* GetBlock      (const ChunkManager* manager, int x, int y, int z);
 void SetBlock                  (ChunkManager* manager, int x, int y, int z, BlockData block);
+BlockType GetBlockType(const FullChunk* chunk, int x, int y, int z);  // Changed parameter from ChunkData to FullChunk
 
 // Mesh generation
 void GenerateChunkMesh          (ClientChunk* chunk);
@@ -201,5 +176,10 @@ void UpdateLightLevels          (ChunkManager* manager, int x, int z);
 
 // Debugging
 void printChunkLoaded    (const ChunkManager* manager);
+void printFullChunk      (FullChunk fullChunk, FILE* file);
+
+// Chunk comparison
+int AreFullChunksEqual(const FullChunk* chunk1, const FullChunk* chunk2);
 
 #endif // CHUNK_MANAGER_H
+

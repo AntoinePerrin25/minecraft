@@ -1,36 +1,44 @@
 #ifndef WORLD_MANAGER_H
 #define WORLD_MANAGER_H
 
-#include <stdbool.h>
-
 #include "chunk_manager.h"
 
-#define WORLD_DIR "world"
+#define WORLD_DIR "./build/world"
 
-// Structure pour stocker un chunk en mémoire avec son état
+// Structure du chunk en cache
 typedef struct {
-    ChunkData data;
-    int x;
-    int z;
-    bool modified;
+    int x, z;                // Position in the world
+    FullChunk chunk;         // Changed from ChunkData to FullChunk
+    bool modified;           // Has been modified since last save
 } CachedChunk;
 
-// Structure pour le gestionnaire de monde
+// Gestionnaire de monde
 typedef struct {
-    int seed;
-    CachedChunk* chunks;
-    int chunkCount;
-    int chunkCapacity;
+    int seed;                // World seed for terrain generation
+    CachedChunk* chunks;     // Array of cached chunks
+    int chunkCount;          // Number of chunks currently cached
+    int chunkCapacity;       // Capacity of chunks array
 } WorldManager;
 
-// Function declarations
-WorldManager* worldManager_create(int seed);
-void worldManager_destroy(WorldManager* wm);
-ChunkData* worldManager_getChunk(WorldManager* wm, int x, int z);
-void worldManager_saveChunk(WorldManager* wm, int x, int z);
-bool worldManager_setBlock(WorldManager* wm, int x, int y, int z, BlockData block);
-void worldManager_saveAll(WorldManager* wm);
-CachedChunk* findChunk(WorldManager* wm, int x, int z);
+// Gets the chunk filename
 void getChunkFilename(char* buffer, int x, int z);
+
+// Create world manager
+WorldManager* worldManager_create(int seed);
+
+// Get or generate chunk
+FullChunk* worldManager_getChunk(WorldManager* wm, int x, int z); // Changed return type from ChunkData* to FullChunk*
+
+// Save chunk to disk
+void worldManager_saveChunk(WorldManager* wm, int x, int z);
+
+// Save all modified chunks
+void worldManager_saveAll(WorldManager* wm);
+
+// Set block in the world
+bool worldManager_setBlock(WorldManager* wm, int x, int y, int z, BlockData block);
+
+// Free resources
+void worldManager_destroy(WorldManager* wm);
 
 #endif // WORLD_MANAGER_H

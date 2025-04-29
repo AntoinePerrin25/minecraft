@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "chunk_manager.h"
 
@@ -14,15 +15,15 @@
 #define TERRAIN_SCALE 50.0f  // Échelle du bruit de Perlin
 
 // Perlin noise functions
-static float fade(float t) {
+static inline float fade(float t) {
     return t * t * t * (t * (t * 6 - 15) + 10);
 }
 
-static float lerp(float t, float a, float b) {
+static inline float lerp(float t, float a, float b) {
     return a + t * (b - a);
 }
 
-static float grad(int hash, float x, float y) {
+static inline float grad(int hash, float x, float y) {
     int h = hash & 15;
     float u = h < 8 ? x : y;
     float v = h < 4 ? y : x;
@@ -39,7 +40,7 @@ static const int base_p[256] = {
     184,84,204,176,115,121,50,45,127,4,150,254,138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180
 };
 
-static float noise2d(float x, float y, int seed) {
+static inline float noise2d(float x, float y, int seed) {
     // Initialiser le tableau de permutations avec la seed
     int p[512];
     
@@ -77,7 +78,7 @@ static float noise2d(float x, float y, int seed) {
 }
 
 // Fonction pour générer la hauteur du terrain à une position donnée
-int getTerrainHeight(int x, int z, int seed) {
+static inline int getTerrainHeight(int x, int z, int seed) {
     float nx = x / TERRAIN_SCALE;
     float nz = z / TERRAIN_SCALE;
     
@@ -86,7 +87,7 @@ int getTerrainHeight(int x, int z, int seed) {
 }
 
 // Fonction pour générer un chunk
-FullChunk generateChunk(int chunkX, int chunkZ, int seed) {
+static inline FullChunk generateChunk(int chunkX, int chunkZ, int seed) {
     FullChunk chunk = {0};
     srand(seed + chunkX * 31 + chunkZ * 17);  // Use seed and chunk position to generate unique terrain
     

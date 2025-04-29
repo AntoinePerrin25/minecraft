@@ -1,3 +1,10 @@
+# For later : Compression
+
+ChunkVertical : index chunk [0, 15] but not mandatory all defined if null,
+ChunkVertical : index chunk [0, 15], compressed = 1: BlockType : BlockTypeCompressed = block != None
+ChunkVertical : index chunk compressed = 0: BlockType : 16x16x16 (BlockType = block != None)
+
+
 # Minecraft
 
 This project is a simple Minecraft-like game written in C using the Raylib library for rendering and a custom network library for multiplayer support.

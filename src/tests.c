@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <raylib/raylib.h>
 #include "chunk_manager.h"
+#include "world.h"  // Pour la fonction generateChunk
 
 void test_chunk_manager_init()
 {
@@ -174,6 +175,73 @@ void test_unload_distant_chunks()
     printf("Unload distant chunks test passed.\n\n");
 }
 
+// Nouveau test pour la compression et décompression des chunks
+void test_chunk_compression_decompression()
+{
+    FILE* chunkinit = fopen("./fullchunkinit.txt", "w");
+    FILE* chunkDC =   fopen("./fullchunkDC.txt"  , "w");
+
+    printf("Testing chunk compression and decompression...\n");
+    
+    // Seed aléatoire pour la génération
+    int seed = 12345;
+    int chunkX = 1;
+    int chunkZ = 2;
+    
+    // Générer un chunk complet
+    printf("Generating a new chunk with seed %d at position (%d, %d)...\n", seed, chunkX, chunkZ);
+    FullChunk originalChunk = generateChunk(chunkX, chunkZ, seed);
+    
+    printFullChunk(originalChunk, chunkinit);
+
+
+    // Compresser le chunk
+    printf("Compressing the chunk...\n");
+    ChunkData compressedChunk = CompressChunk(&originalChunk);
+    
+    // Analyse d'optimisation
+    int totalSections = CHUNK_SIZE;
+    int uniformSections = 0;
+    int nullSections = 0;
+    
+    for (int section = 0; section < CHUNK_SIZE; section++) {
+        if (compressedChunk.verticals[section] == NULL) {
+            nullSections++;
+        } else if (compressedChunk.verticals[section]->compressed) {
+            uniformSections++;
+        }
+    }
+    
+    float compressionRatio = (float)(uniformSections + nullSections) / totalSections * 100.0f;
+    printf("Compression statistics: %d/%d sections uniformes (%d NULL), %.2f%% d'efficacité\n", 
+           uniformSections, totalSections, nullSections, compressionRatio);
+    
+    // Décompresser le chunk
+    printf("Decompressing the chunk...\n");
+    FullChunk decompressedChunk = DecompressChunk(&compressedChunk);
+    
+    printFullChunk(decompressedChunk, chunkDC);
+    
+    fclose(chunkinit);
+    fclose(chunkDC);
+
+    // Comparer les chunks original et décompressé
+    printf("Comparing original and decompressed chunks...\n");
+    int areEqual = AreFullChunksEqual(&originalChunk, &decompressedChunk);
+    
+    assert(areEqual && "Chunks should be identical after compression and decompression");
+    printf("Chunk compression and decompression test passed!\n");
+    
+    // Libérer la mémoire allouée par la compression
+    for (int section = 0; section < CHUNK_SIZE; section++) {
+        if (compressedChunk.verticals[section] != NULL) {
+            free(compressedChunk.verticals[section]);
+            compressedChunk.verticals[section] = NULL;
+        }
+    }
+    
+    printf("Chunk compression and decompression test completed.\n\n");
+}
 
 typedef BlockData checksizedata[2 - sizeof(BlockData)];
 
@@ -188,6 +256,7 @@ int main()
     test_add_get_remove_chunk();
     test_world_to_chunk_coords();
     test_unload_distant_chunks();
+    test_chunk_compression_decompression();  // Ajout du nouveau test
 
     printf("\nAll tests passed successfully!\n");
 

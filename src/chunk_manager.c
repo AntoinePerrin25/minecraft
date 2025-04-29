@@ -1,10 +1,10 @@
 #include <math.h>
 
+#include "../nob.h"
 
 #include "chunk_manager.h"
 #include "raylib.h"
 
-#include "../nob.h"
 #define NOB_LEVEL_DEF NOB_INFO
 
 
@@ -51,7 +51,6 @@ ClientChunk* CreateClientChunk(int x, int z)
 
 void FreeClientChunk(ClientChunk* chunk)
 {
-
     if (!chunk)
     {
         nob_log(NOB_ERROR, "Unable to free chunk: Chunk is NULL\n");
@@ -63,17 +62,13 @@ void FreeClientChunk(ClientChunk* chunk)
 
     nob_log(NOB_LEVEL_DEF, "Freeing chunk at (%d, %d)\n", x, z);
     
-    nob_log(NOB_WARNING, "FreeClientChunk : Mesh Need to be unloaded later\n");
-    UnloadMesh(chunk->mesh);
-    
-    for(int y = 0; y < CHUNK_SIZE; y++)
-    {
-        free(chunk->data.verticals[y]);
+    if (chunk->mesh.initialized) {
+        nob_log(NOB_WARNING, "FreeClientChunk: Unloading mesh\n");
+        UnloadMesh(chunk->mesh.mesh);
     }
-
+    
     free(chunk);
     nob_log(NOB_LEVEL_DEF, "Freed chunk at (%d, %d)\n", x, z);
-    
 }
 
 
@@ -147,12 +142,6 @@ static inline void IndexToCoords(int index, int* x, int* y, int* z) {
     *z = index % CHUNK_SIZE;
 }
 
-// Get block from the new linear layout
-static inline BlockData* GetBlockFromVertical(ChunkVertical* vertical, int x, int y, int z) {
-    if (!vertical) return NULL;
-    return &vertical->blocks[x][y][z];
-}
-
 void unloadDistantChunks(ChunkManager* manager, const Vector3* playerPos)
 {
     Vector3Int playerChunk = worldToChunkCoords(playerPos);
@@ -173,12 +162,15 @@ void unloadDistantChunks(ChunkManager* manager, const Vector3* playerPos)
     nob_log(NOB_LEVEL_DEF, "Unloaded Chunks at %d, %d\n", playerChunk.x, playerChunk.z);
 }
 
-// Chunk vertical operations
-ChunkVertical* CreateChunkVertical(void)
+// Helper function to get block type from a chunk
+BlockType GetBlockType(const FullChunk* chunk, int x, int y, int z)
 {
-    return calloc(1, sizeof(ChunkVertical));
+    // Check bounds
+    if (x < 0 || x >= CHUNK_SIZE || y < 0 || y >= WORLD_HEIGHT || z < 0 || z >= CHUNK_SIZE)
+        return BLOCK_AIR; // Out of bounds is treated as air
+    
+    return chunk->blocks[y][x][z].Type;
 }
-
 
 // Block operations
 BlockData* GetBlock(const ChunkManager* manager, int x, int y, int z)
@@ -189,11 +181,16 @@ BlockData* GetBlock(const ChunkManager* manager, int x, int y, int z)
     {
         if (manager->chunks[i] && manager->chunks[i]->x == chunkpos.x && manager->chunks[i]->z == chunkpos.z)
         {
-            ChunkVertical *vertical = manager->chunks[i]->data.verticals[chunkpos.y];
-            if (vertical)
-            {
-                return &vertical->blocks[x % CHUNK_SIZE][y % CHUNK_SIZE][z % CHUNK_SIZE];
-            }
+            // Get local coordinates within the chunk
+            int localX = x % CHUNK_SIZE;
+            if (localX < 0) localX += CHUNK_SIZE;
+            
+            int localY = y;  // Y is already global
+            
+            int localZ = z % CHUNK_SIZE;
+            if (localZ < 0) localZ += CHUNK_SIZE;
+            
+            return &manager->chunks[i]->chunk.blocks[localY][localX][localZ];
         }
     }
     return NULL;
@@ -236,84 +233,47 @@ void printChunkLoaded(const ChunkManager* manager)
     printf("=====================\n");
 }
 
-// Compress a FullChunk into a ChunkData structure
-ChunkData CompressChunk(const FullChunk* fullChunk)
+void printFullChunk(FullChunk fullChunk, FILE* file)
 {
-    ChunkData chunkData = {0};  // Initialize to zeros
-    
-    // Process each vertical section
-    for (int section = 0; section < CHUNK_SIZE; section++)
+    fprintf(file, "=====================\n");
+    fprintf(file, "Full Chunk:\n");
+    for (int y = CHUNK_SIZE2-1; y >= 0; y--)
     {
-        int startY = section * CHUNK_SIZE;
-        
-        // Check if this section has blocks (not all air)
-        bool hasBlocks = false;
-        BlockType firstType = fullChunk->blocks[startY][0][0].Type;
-        bool allSameType = true;
-        
-        // First pass: Check if all blocks are the same type
-        for (int y = 0; y < CHUNK_SIZE && allSameType; y++)
+        for (int x = 0; x < CHUNK_SIZE; x++)
         {
-            int worldY = startY + y;
-            if (worldY >= CHUNK_SIZE2) break;
-            
-            for (int x = 0; x < CHUNK_SIZE && allSameType; x++)
-            {
-                for (int z = 0; z < CHUNK_SIZE && allSameType; z++)
-                {
-                    BlockType currentType = fullChunk->blocks[worldY][x][z].Type;
-                    
-                    if (currentType != BLOCK_AIR)
-                        hasBlocks = true;
-                    
-                    if (currentType != firstType)
-                        allSameType = false;
-                }
-            }
+            fprintf(file, "%d ", fullChunk.blocks[y][x][7].Type);
         }
-        
-        // If all blocks are the same type
-        if (allSameType)
-        {
-            // Store the block type and don't allocate a vertical section
-            chunkData.blockType[section] = firstType;
+        fprintf(file, "\n");
+    }
+    fprintf(file, "=====================\n");
+}
 
-            free(chunkData.verticals[section]);
-            chunkData.verticals[section] = NULL;
-            
-            // If it's all air, no need to further process this section
-            if (firstType == BLOCK_AIR || !hasBlocks)
-                continue;
-        }
-        else
+// Compare deux FullChunk pour vérifier s'ils sont identiques
+int AreFullChunksEqual(const FullChunk* chunk1, const FullChunk* chunk2)
+{
+    if (!chunk1 || !chunk2) return 0;
+    
+    for (int y = 0; y < CHUNK_SIZE2; y++)
+    {
+        for (int x = 0; x < CHUNK_SIZE; x++)
         {
-            // Blocks are not all the same type, so we need to allocate a vertical section
-            chunkData.blockType[section] = BLOCK_NONE;
-            chunkData.verticals[section] = CreateChunkVertical();
-            
-            if (!chunkData.verticals[section])
+            for (int z = 0; z < CHUNK_SIZE; z++)
             {
-                nob_log(NOB_ERROR, "Failed to allocate chunk vertical section %d", section);
-                continue;
-            }
-            
-            // Copy blocks from the full chunk to this vertical section
-            for (int y = 0; y < CHUNK_SIZE; y++)
-            {
-                int worldY = startY + y;
-                if (worldY >= CHUNK_SIZE2) break;
+                BlockData block1 = chunk1->blocks[y][x][z];
+                BlockData block2 = chunk2->blocks[y][x][z];
                 
-                for (int x = 0; x < CHUNK_SIZE; x++)
+                // Compare all properties of BlockData
+                if (block1.Type != block2.Type || 
+                    block1.lightLevel != block2.lightLevel ||
+                    block1.gravity != block2.gravity ||
+                    block1.solid != block2.solid ||
+                    block1.visible != block2.visible)
                 {
-                    for (int z = 0; z < CHUNK_SIZE; z++)
-                    {
-                        chunkData.verticals[section]->blocks[y][x][z] = fullChunk->blocks[worldY][x][z];
-                    }
+                    return 0;  // Not equal
                 }
             }
         }
     }
-    nob_log(NOB_LEVEL_DEF, "Compressed chunk at \n");
-
-    return chunkData;
+    
+    return 1;  // Equal
 }

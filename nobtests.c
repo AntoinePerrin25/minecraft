@@ -17,21 +17,20 @@ int main(int argc, char **argv)
      
     Nob_Cmd cmd = {0};
     nob_cmd_append(&cmd, "gcc");
-    nob_cmd_append(&cmd, "-Wall", "-Wextra", "-Werror", "-O3", "-g", "-fcommon");
+    nob_cmd_append(&cmd, "-Wall", "-Wextra", "-O3", "-g", "-fcommon");
     nob_cmd_append(&cmd, "-I./include/", "-L./lib/");
     nob_cmd_append(&cmd, "./src/chunk_manager.c", "./src/tests.c", "./src/world_manager.c");
     nob_cmd_append(&cmd, "-o", "./tests/tests");
     nob_cmd_append(&cmd, "-lraylib", "-lenet", "-lopengl32", "-lgdi32", "-lwinmm", "-lws2_32");
     if (!nob_cmd_run_sync(cmd)) return 1;
     
-    /*
     cmd = (Nob_Cmd){0};
-    nob_cmd_append(&cmd, "./tests/tests");
+    nob_cmd_append(&cmd, ".\\tests\\tests");
     nob_cmd_run_async(cmd);
     if (!nob_cmd_run_sync(cmd)) return 1;
     
     printf("Tests Executed\n");
-    */
+    
 
     return 0;
 }
