@@ -182,150 +182,6 @@ int isBlockExposed(Chunk *chunks, int x, int y, int z)
     return exposed;
 }
 
-static bool IsFaceVisible(Vector3 blockCenter, Vector3 faceNormal, Vector3 cameraPos)
-{
-    Vector3 toCamera = Vector3Subtract(cameraPos, blockCenter);
-    return Vector3DotProduct(faceNormal, toCamera) > 0.0f;
-}
-
-static void DrawBlockFace(Vector3 pos, int faceIdx, float size, Color color)
-{
-    float s = size * 0.5f;
-    Vector3 center = { pos.x + 0.5f, pos.y + 0.5f, pos.z + 0.5f };
-    Vector3 v[4];
-
-    // L'ordre des vertices doit suivre le sens anti-horaire (CCW) vu de l'extérieur
-    // pour que le back-face culling fonctionne correctement
-    switch (faceIdx) {
-        case 0: // Droite (+X) - normale vers +X
-            v[0] = (Vector3){center.x + s, center.y - s, center.z + s};
-            v[1] = (Vector3){center.x + s, center.y - s, center.z - s};
-            v[2] = (Vector3){center.x + s, center.y + s, center.z - s};
-            v[3] = (Vector3){center.x + s, center.y + s, center.z + s};
-            break;
-        case 1: // Gauche (-X) - normale vers -X
-            v[0] = (Vector3){center.x - s, center.y - s, center.z - s};
-            v[1] = (Vector3){center.x - s, center.y - s, center.z + s};
-            v[2] = (Vector3){center.x - s, center.y + s, center.z + s};
-            v[3] = (Vector3){center.x - s, center.y + s, center.z - s};
-            break;
-        case 2: // Haut (+Y) - normale vers +Y
-            v[0] = (Vector3){center.x - s, center.y + s, center.z + s};
-            v[1] = (Vector3){center.x + s, center.y + s, center.z + s};
-            v[2] = (Vector3){center.x + s, center.y + s, center.z - s};
-            v[3] = (Vector3){center.x - s, center.y + s, center.z - s};
-            break;
-        case 3: // Bas (-Y) - normale vers -Y
-            v[0] = (Vector3){center.x - s, center.y - s, center.z - s};
-            v[1] = (Vector3){center.x + s, center.y - s, center.z - s};
-            v[2] = (Vector3){center.x + s, center.y - s, center.z + s};
-            v[3] = (Vector3){center.x - s, center.y - s, center.z + s};
-            break;
-        case 4: // Avant (+Z) - normale vers +Z
-            v[0] = (Vector3){center.x - s, center.y - s, center.z + s};
-            v[1] = (Vector3){center.x + s, center.y - s, center.z + s};
-            v[2] = (Vector3){center.x + s, center.y + s, center.z + s};
-            v[3] = (Vector3){center.x - s, center.y + s, center.z + s};
-            break;
-        case 5: // Arrière (-Z) - normale vers -Z
-            v[0] = (Vector3){center.x + s, center.y - s, center.z - s};
-            v[1] = (Vector3){center.x - s, center.y - s, center.z - s};
-            v[2] = (Vector3){center.x - s, center.y + s, center.z - s};
-            v[3] = (Vector3){center.x + s, center.y + s, center.z - s};
-            break;
-    }
-
-    // Deux triangles par face avec ordre CCW (Counter-ClockWise)
-    DrawTriangle3D(v[0], v[1], v[2], color);
-    DrawTriangle3D(v[0], v[2], v[3], color);
-}
-
-void DrawChunks(Chunk *chunks, Vector3 cameraDir, Vector3 playerPos)
-{
-    (void)cameraDir; // Unused parameter - kept for API compatibility
-    const float blockSize = 1.0f;
-    
-    // Activer le culling GPU (back-face culling)
-    rlEnableBackfaceCulling();
-
-    for (int i = 0; i < (2 * RENDER_DISTANCE + 1) * (2 * RENDER_DISTANCE + 1); i++)
-    {
-        Chunk *chunk = &chunks[i];  // Pointeur pour éviter copie
-
-        for (int x = 0; x < CHUNK_SIZE; x++)
-        {
-            for (int z = 0; z < CHUNK_SIZE; z++)
-            {
-                for (int y = 0; y < WORLD_HEIGHT; y++)
-                {
-                    BlockData block = chunk->data.blocks[x][y][z];
-                    if (!block.visible || block.Type == BLOCK_AIR || block.Type == BLOCK_NONE)
-                        continue;
-
-                    // Position monde du bloc
-                    int worldX = chunk->x * CHUNK_SIZE + x;
-                    int worldY = y;
-                    int worldZ = chunk->z * CHUNK_SIZE + z;
-                    
-                    Vector3 blockPos = {
-                        (float)worldX,
-                        (float)worldY,
-                        (float)worldZ
-                    };
-
-                    // Centre du bloc pour le face culling CPU
-                    Vector3 blockCenter = {
-                        blockPos.x + 0.5f,
-                        blockPos.y + 0.5f,
-                        blockPos.z + 0.5f
-                    };
-
-                    // Couleur du bloc
-                    Color blockColor;
-                    switch (block.Type)
-                    {
-                        case BLOCK_BEDROCK: blockColor = DARKGRAY; break;
-                        case BLOCK_DIRT:    blockColor = BROWN;    break;
-                        case BLOCK_GRASS:   blockColor = GREEN;    break;
-                        case BLOCK_STONE:   blockColor = GRAY;     break;
-                        case BLOCK_WATER:   blockColor = BLUE;     break;
-                        case BLOCK_SAND:    blockColor = YELLOW;   break;
-                        case BLOCK_WOOD:    blockColor = ORANGE;   break;
-                        default:            blockColor = WHITE;    break;
-                    }
-
-                    // Vérifier chaque face
-                    for (int f = 0; f < 6; f++)
-                    {
-                        int nx = worldX + blockFaces[f].offset[0];
-                        int ny = worldY + blockFaces[f].offset[1];
-                        int nz = worldZ + blockFaces[f].offset[2];
-
-                        BlockData neighbor = getBlockAt(chunks, nx, ny, nz);
-
-                        // Face exposée ?
-                        bool exposed = (neighbor.Type == BLOCK_AIR || neighbor.Type == BLOCK_NONE ||
-                                       (neighbor.Type == BLOCK_WATER && block.Type != BLOCK_WATER));
-
-                        if (!exposed) continue;
-
-                        // Face tournée vers la caméra ? (Face culling CPU)
-                        if (!IsFaceVisible(blockCenter, blockFaces[f].normal, playerPos))
-                            continue;
-
-                        // Option : couleur légèrement différente par face (pour l'ambiance)
-                        int hash = (worldX) + (worldY) + (worldZ) % 256;
-                        Color faceColor = (Color) {blockColor.r, blockColor.g, blockColor.b, 
-                                                  (unsigned char)((blockColor.a * (200 + hash % 56)) / 255)};
-                        DrawBlockFace(blockPos, f, blockSize, faceColor);
-                    }
-                }
-            }
-        }
-    }
-    rlDisableBackfaceCulling();
-}
-
 // ============================================================================
 // SYSTÈME DE MESH OPTIMISÉ POUR MEILLEURE PERFORMANCE
 // ============================================================================
@@ -348,6 +204,21 @@ static void InitMeshBuilder(MeshBuilder *mb, int initialCapacity)
     mb->normals = (float*)malloc(initialCapacity * 3 * sizeof(float));
     mb->texcoords = (float*)malloc(initialCapacity * 2 * sizeof(float));
     mb->colors = (unsigned char*)malloc(initialCapacity * 4 * sizeof(unsigned char));
+    
+    // Vérifier que toutes les allocations ont réussi
+    if (!mb->vertices || !mb->normals || !mb->texcoords || !mb->colors) {
+        fprintf(stderr, "ERREUR: Échec d'allocation mémoire dans InitMeshBuilder\n");
+        if (mb->vertices) free(mb->vertices);
+        if (mb->normals) free(mb->normals);
+        if (mb->texcoords) free(mb->texcoords);
+        if (mb->colors) free(mb->colors);
+        mb->capacity = 0;
+        mb->vertexCount = 0;
+        mb->vertices = NULL;
+        mb->normals = NULL;
+        mb->texcoords = NULL;
+        mb->colors = NULL;
+    }
 }
 
 static void FreeMeshBuilder(MeshBuilder *mb)
@@ -407,11 +278,32 @@ static void AddFaceToMesh(MeshBuilder *mb, Vector3 pos, int faceIdx, BlockType b
 
     // Agrandir si nécessaire
     if (mb->vertexCount + 6 > mb->capacity) {
-        mb->capacity *= 2;
-        mb->vertices = (float*)realloc(mb->vertices, mb->capacity * 3 * sizeof(float));
-        mb->normals = (float*)realloc(mb->normals, mb->capacity * 3 * sizeof(float));
-        mb->texcoords = (float*)realloc(mb->texcoords, mb->capacity * 2 * sizeof(float));
-        mb->colors = (unsigned char*)realloc(mb->colors, mb->capacity * 4 * sizeof(unsigned char));
+        int newCapacity = mb->capacity * 2;
+        
+        // Tenter de réallouer avec vérification d'erreur
+        float *newVertices = (float*)realloc(mb->vertices, newCapacity * 3 * sizeof(float));
+        float *newNormals = (float*)realloc(mb->normals, newCapacity * 3 * sizeof(float));
+        float *newTexcoords = (float*)realloc(mb->texcoords, newCapacity * 2 * sizeof(float));
+        unsigned char *newColors = (unsigned char*)realloc(mb->colors, newCapacity * 4 * sizeof(unsigned char));
+        
+        // Vérifier que toutes les réallocations ont réussi
+        if (!newVertices || !newNormals || !newTexcoords || !newColors) {
+            fprintf(stderr, "ERREUR: Échec de réallocation dans AddFaceToMesh\n");
+            // Libérer ceux qui ont réussi (realloc peut avoir réussi partiellement)
+            if (newVertices && newVertices != mb->vertices) free(newVertices);
+            if (newNormals && newNormals != mb->normals) free(newNormals);
+            if (newTexcoords && newTexcoords != mb->texcoords) free(newTexcoords);
+            if (newColors && newColors != mb->colors) free(newColors);
+            // Les pointeurs originaux sont toujours valides dans mb
+            return; // Abandonner l'ajout de cette face
+        }
+        
+        // Tout a réussi, mettre à jour le MeshBuilder
+        mb->vertices = newVertices;
+        mb->normals = newNormals;
+        mb->texcoords = newTexcoords;
+        mb->colors = newColors;
+        mb->capacity = newCapacity;
     }
 
     // Obtenir l'index de texture pour cette face
@@ -419,12 +311,12 @@ static void AddFaceToMesh(MeshBuilder *mb, Vector3 pos, int faceIdx, BlockType b
     Rectangle uvRect = GetTextureRectFromAtlas(textureIndex);
     
     // Coordonnées UV pour cette texture dans l'atlas
-    // uvRect contient déjà les coordonnées normalisées (0.0-1.0)
+    // Inverser Y car OpenGL a l'origine en bas, mais l'atlas a l'origine en haut
     float uvCoords[4][2] = {
-        {uvRect.x, uvRect.y},                           // Coin haut-gauche
-        {uvRect.x + uvRect.width, uvRect.y},            // Coin haut-droit
+        {uvRect.x, uvRect.y + uvRect.height},           // Coin bas-gauche
         {uvRect.x + uvRect.width, uvRect.y + uvRect.height},  // Coin bas-droit
-        {uvRect.x, uvRect.y + uvRect.height}            // Coin bas-gauche
+        {uvRect.x + uvRect.width, uvRect.y},            // Coin haut-droit
+        {uvRect.x, uvRect.y}                            // Coin haut-gauche
     };
 
     // Premier triangle (v0, v1, v2)
@@ -486,17 +378,28 @@ void GenerateChunkMesh(Chunk *chunk, Chunk *chunks, Texture2D atlas)
         return;
     }
     
-    (void)atlas; // Sera utilisé pour appliquer la texture au material
-
-    // Libérer l'ancien mesh si existant
+    // Libérer l'ancien mesh si existant PROPREMENT
     if (chunk->meshGenerated) {
-        UnloadModel(chunk->model);
-        // Note: UnloadModel libère aussi le mesh automatiquement
+        if (chunk->model.meshes != NULL) {
+            UnloadModel(chunk->model);
+        }
+        // Réinitialiser complètement la structure
+        chunk->model = (Model){0};
+        chunk->model.meshes = NULL;
+        chunk->model.materials = NULL;
+        chunk->model.meshMaterial = NULL;
         chunk->meshGenerated = false;
     }
 
     MeshBuilder mb;
     InitMeshBuilder(&mb, 10000); // Capacité initiale
+    
+    // Vérifier que l'initialisation a réussi
+    if (mb.capacity == 0 || !mb.vertices) {
+        fprintf(stderr, "ERREUR: Échec d'initialisation du MeshBuilder\n");
+        chunk->meshGenerated = false;
+        return;
+    }
 
     // Parcourir tous les blocs du chunk
     for (int x = 0; x < CHUNK_SIZE; x++) {
@@ -563,6 +466,18 @@ void GenerateChunkMesh(Chunk *chunk, Chunk *chunks, Texture2D atlas)
         mesh.texcoords = (float*)RL_MALLOC(mb.vertexCount * 2 * sizeof(float));
         mesh.colors = (unsigned char*)RL_MALLOC(mb.vertexCount * 4 * sizeof(unsigned char));
         
+        // Vérifier que les allocations ont réussi
+        if (!mesh.vertices || !mesh.normals || !mesh.texcoords || !mesh.colors) {
+            fprintf(stderr, "ERREUR: Échec d'allocation mémoire pour le mesh\n");
+            if (mesh.vertices) RL_FREE(mesh.vertices);
+            if (mesh.normals) RL_FREE(mesh.normals);
+            if (mesh.texcoords) RL_FREE(mesh.texcoords);
+            if (mesh.colors) RL_FREE(mesh.colors);
+            FreeMeshBuilder(&mb);
+            chunk->meshGenerated = false;
+            return;
+        }
+        
         // Copier les données
         memcpy(mesh.vertices, mb.vertices, mb.vertexCount * 3 * sizeof(float));
         memcpy(mesh.normals, mb.normals, mb.vertexCount * 3 * sizeof(float));
@@ -589,11 +504,22 @@ void GenerateChunkMesh(Chunk *chunk, Chunk *chunks, Texture2D atlas)
         // Uploader le mesh manuellement vers le GPU
         UploadMesh(&mesh, false);
         
-        printf("    -> Mesh uploadé, création du model...\n");
+        printf("    -> Mesh uploadé (vaoId=%u), création du model...\n", mesh.vaoId);
         fflush(stdout);
         
-        // Créer le model manuellement au lieu d'utiliser LoadModelFromMesh
-        chunk->model = (Model){0};
+        // Vérifier que l'upload a réussi
+        if (mesh.vaoId == 0) {
+            fprintf(stderr, "ERREUR: Échec de l'upload du mesh vers le GPU\n");
+            RL_FREE(mesh.vertices);
+            RL_FREE(mesh.normals);
+            RL_FREE(mesh.texcoords);
+            RL_FREE(mesh.colors);
+            chunk->meshGenerated = false;
+            return;
+        }
+        
+        // Créer le model manuellement
+        // Note: chunk->model a déjà été réinitialisé au début de la fonction
         chunk->model.transform = MatrixIdentity();
         chunk->model.meshCount = 1;
         chunk->model.materialCount = 1;
@@ -601,20 +527,38 @@ void GenerateChunkMesh(Chunk *chunk, Chunk *chunks, Texture2D atlas)
         chunk->model.materials = (Material*)RL_MALLOC(sizeof(Material));
         chunk->model.meshMaterial = (int*)RL_MALLOC(sizeof(int));
         
+        // Vérifier les allocations du model
+        if (!chunk->model.meshes || !chunk->model.materials || !chunk->model.meshMaterial) {
+            fprintf(stderr, "ERREUR: Échec d'allocation mémoire pour le model\n");
+            if (chunk->model.meshes) RL_FREE(chunk->model.meshes);
+            if (chunk->model.materials) RL_FREE(chunk->model.materials);
+            if (chunk->model.meshMaterial) RL_FREE(chunk->model.meshMaterial);
+            // Le mesh a déjà été uploadé, il faut le décharger
+            UnloadMesh(mesh);
+            chunk->meshGenerated = false;
+            return;
+        }
+        
         chunk->model.meshes[0] = mesh;
+        
+        printf("    -> Chargement du material par défaut...\n");
+        fflush(stdout);
+        
+        // Utiliser LoadMaterialDefault qui initialise proprement tous les champs
         chunk->model.materials[0] = LoadMaterialDefault();
-        // Appliquer la texture atlas au material
+        
+        printf("    -> Material chargé, assignation de la texture atlas...\n");
+        fflush(stdout);
+        
+        // Assigner directement la texture atlas sans passer par SetMaterialTexture
+        // pour éviter les problèmes de synchronisation
         chunk->model.materials[0].maps[MATERIAL_MAP_DIFFUSE].texture = atlas;
+        
         chunk->model.meshMaterial[0] = 0;
         
         chunk->meshGenerated = true;
         
         printf("    -> Model créé OK\n");
-        
-        // Debug: vérifier si le mesh a été uploadé
-        printf("    -> Model créé, mesh vaoId=%u, vboId[0]=%u\n", 
-               chunk->model.meshes[0].vaoId, 
-               chunk->model.meshes[0].vboId[0]);
     } else {
         printf("    -> Aucun vertex (chunk vide)\n");
         FreeMeshBuilder(&mb);
@@ -626,8 +570,14 @@ void GenerateChunkMesh(Chunk *chunk, Chunk *chunks, Texture2D atlas)
 void FreeChunkMesh(Chunk *chunk)
 {
     if (chunk->meshGenerated) {
-        UnloadModel(chunk->model);
-        // Note: UnloadModel libère aussi le mesh, pas besoin de UnloadMesh
+        // Vérifier que le model est valide avant de le décharger
+        if (chunk->model.meshes != NULL) {
+            UnloadModel(chunk->model);
+            // Réinitialiser les pointeurs
+            chunk->model.meshes = NULL;
+            chunk->model.materials = NULL;
+            chunk->model.meshMaterial = NULL;
+        }
         chunk->meshGenerated = false;
     }
 }

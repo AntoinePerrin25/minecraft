@@ -66,7 +66,7 @@ BlockFaceTextures GetBlockTextures(int blockType)
     if (blockType < 0 || blockType >= (int)(sizeof(blockTextureMap) / sizeof(blockTextureMap[0])))
     {
         // Retourner une texture par défaut (pierre)
-        return blockTextureMap[BLOCK_STONE];
+        return blockTextureMap[BLOCK_NULL];
     }
     
     return blockTextureMap[blockType];

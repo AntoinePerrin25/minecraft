@@ -12,7 +12,7 @@ int main(int argc, char **argv)
     {
         Nob_Cmd cmd = {0};
         nob_cmd_append(&cmd, "gcc");
-        nob_cmd_append(&cmd, "-Wall", "-Wextra", "-O3", "-ffast-math", "-march=native", "-lpthread");
+        nob_cmd_append(&cmd, "-Wall", "-Wextra", "-O3", "-march=native");
         nob_cmd_append(&cmd, "-I./include");
         nob_cmd_append(&cmd, "./src/main.c");
         nob_cmd_append(&cmd, "./src/data.c");
@@ -25,9 +25,8 @@ int main(int argc, char **argv)
             printf("Client Not Compiled\n");
             return 1;
         }
-        else printf("Client Compiled Successully\n");
+        else printf("Client Compiled Successfully\n");
     }
-
 
     // Lancement du client
     if(!strcmp(argv[1], "l"))

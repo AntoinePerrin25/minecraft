@@ -72,8 +72,7 @@ typedef struct {
     int x;
     int z;
     ChunkData data;
-    Mesh mesh;           // Mesh généré pour ce chunk
-    Model model;         // Model pour le rendu
+    Model model;         // Model pour le rendu (contient le mesh)
     bool meshGenerated;  // Flag pour savoir si le mesh est à jour
 } Chunk;
 

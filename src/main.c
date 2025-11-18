@@ -48,6 +48,10 @@ int main(void) {
         for (int z = -RENDER_DISTANCE; z <= RENDER_DISTANCE; z++) {
             int index = (x + RENDER_DISTANCE) * (2*RENDER_DISTANCE + 1) + (z + RENDER_DISTANCE);
             chunks[index].meshGenerated = false;
+            // Initialiser les pointeurs du Model à NULL pour éviter les crashs
+            chunks[index].model.meshes = NULL;
+            chunks[index].model.materials = NULL;
+            chunks[index].model.meshMaterial = NULL;
             generateChunk(&chunks[index], x, z);
         }
     }
@@ -61,10 +65,14 @@ int main(void) {
         GenerateChunkMesh(&chunks[i], chunks, blockAtlas);
     }
     printf("Meshes générés!\n");
-
+    fflush(stdout);
 
     // Désactiver le curseur pour le mode FPS
+    printf("Désactivation du curseur...\n");
+    fflush(stdout);
     DisableCursor();
+    printf("Curseur désactivé, début de la boucle principale\n");
+    fflush(stdout);
 
     // Boucle principale
     while (!WindowShouldClose())
@@ -79,8 +87,8 @@ int main(void) {
         player.pitch -= mouseY;
         
         // Limiter la rotation verticale
-        if (player.pitch > 89.0f) player.pitch = 89.0f;
-        if (player.pitch < -89.0f) player.pitch = -89.0f;
+        if (player.pitch > 89.9999f) player.pitch = 89.9999f;
+        if (player.pitch < -89.9999f) player.pitch = -89.9999f;
 
         // Calcul des vecteurs de direction
         Vector3 direction = {
@@ -160,10 +168,15 @@ int main(void) {
         EndDrawing();
     }
 
-    // Libérer les meshes
+    // Libérer les meshes (cela doit être fait AVANT de décharger l'atlas)
     for (int i = 0; i < (2*RENDER_DISTANCE+1)*(2*RENDER_DISTANCE+1); i++) {
         FreeChunkMesh(&chunks[i]);
     }
+    
+    // Maintenant on peut libérer l'atlas car plus aucun material ne le référence
+    UnloadTexture(blockAtlas);
+    
+    // Libérer le tableau de chunks
     free(chunks);
 
     CloseWindow();
