@@ -19,7 +19,8 @@ int main(void) {
     // Initialisation de la fenêtre
     InitWindow(WINDOWS_WIDTH, WINDOWS_HEIGHT, "Minecraft en C");
     SetTargetFPS(120);
-    
+    DisableCursor(); // Cacher le curseur pour la caméra FPS
+
     // Charger l'atlas de textures
     Texture2D blockAtlas = LoadAtlasTexture("atlas.png");
     if (blockAtlas.id == 0) {
@@ -34,7 +35,7 @@ int main(void) {
     camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
     camera.fovy = 70.0f;
     camera.projection = CAMERA_PERSPECTIVE;
-
+    
     // Initialisation du joueur
     Player player = {
         .position = (Vector3){ 0.0f, 66.0f, 0.0f },
@@ -47,32 +48,10 @@ int main(void) {
     for (int x = -RENDER_DISTANCE; x <= RENDER_DISTANCE; x++) {
         for (int z = -RENDER_DISTANCE; z <= RENDER_DISTANCE; z++) {
             int index = (x + RENDER_DISTANCE) * (2*RENDER_DISTANCE + 1) + (z + RENDER_DISTANCE);
-            chunks[index].meshGenerated = false;
             // Initialiser les pointeurs du Model à NULL pour éviter les crashs
-            chunks[index].model.meshes = NULL;
-            chunks[index].model.materials = NULL;
-            chunks[index].model.meshMaterial = NULL;
             generateChunk(&chunks[index], x, z);
         }
-    }
-
-    // Générer les meshes pour tous les chunks
-    printf("Génération des meshes...\n");
-    int totalChunks = (2*RENDER_DISTANCE+1)*(2*RENDER_DISTANCE+1);
-    for (int i = 0; i < totalChunks; i++) {
-        printf("  Chunk %d/%d (x=%d, z=%d)...\n", i+1, totalChunks, chunks[i].x, chunks[i].z);
-        fflush(stdout);
-        GenerateChunkMesh(&chunks[i], chunks, blockAtlas);
-    }
-    printf("Meshes générés!\n");
-    fflush(stdout);
-
-    // Désactiver le curseur pour le mode FPS
-    printf("Désactivation du curseur...\n");
-    fflush(stdout);
-    DisableCursor();
-    printf("Curseur désactivé, début de la boucle principale\n");
-    fflush(stdout);
+    }   
 
     // Boucle principale
     while (!WindowShouldClose())
@@ -144,13 +123,6 @@ int main(void) {
             DrawLine3D((Vector3){0,0,0}, (Vector3){0,10,0}, GREEN);
             DrawLine3D((Vector3){0,0,0}, (Vector3){0,0,10}, BLUE);
             
-            // Rendu des chunks avec meshes optimisés
-            for (int i = 0; i < (2*RENDER_DISTANCE+1)*(2*RENDER_DISTANCE+1); i++) {
-                if (chunks[i].meshGenerated) {
-                    DrawModel(chunks[i].model, (Vector3){0, 0, 0}, 1.0f, WHITE);
-                }
-            }
-                
             EndMode3D();
 
             // UI Player
@@ -168,11 +140,6 @@ int main(void) {
         EndDrawing();
     }
 
-    // Libérer les meshes (cela doit être fait AVANT de décharger l'atlas)
-    for (int i = 0; i < (2*RENDER_DISTANCE+1)*(2*RENDER_DISTANCE+1); i++) {
-        FreeChunkMesh(&chunks[i]);
-    }
-    
     // Maintenant on peut libérer l'atlas car plus aucun material ne le référence
     UnloadTexture(blockAtlas);
     

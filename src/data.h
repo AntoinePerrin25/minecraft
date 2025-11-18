@@ -72,14 +72,10 @@ typedef struct {
     int x;
     int z;
     ChunkData data;
-    Model model;         // Model pour le rendu (contient le mesh)
-    bool meshGenerated;  // Flag pour savoir si le mesh est à jour
 } Chunk;
 
 BlockData createBlock(BlockType type);
 void generateChunk(Chunk *chunk, int chunkX, int chunkZ);
-void GenerateChunkMesh(Chunk *chunk, Chunk *chunks, Texture2D atlas);
 void DrawChunks(Chunk* chunks, Vector3 direction, Vector3 playerPos);
-void FreeChunkMesh(Chunk *chunk);
 
 #endif
