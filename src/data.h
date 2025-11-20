@@ -50,7 +50,8 @@ typedef enum
     BLOCK_WATER,
     BLOCK_SAND,
     BLOCK_WOOD,
-    BLOCK_NULL
+    BLOCK_NULL,
+    BLOCK_BREAKING
 } BlockType;
 
 typedef struct __attribute__((packed, aligned(1))) BlockData

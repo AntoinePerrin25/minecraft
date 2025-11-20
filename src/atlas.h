@@ -52,7 +52,17 @@ typedef enum {
     ATLAS_NULL2,
     ATLAS_FERN,
     ATLAS_GRASS_BIOME,
-    ATLAS_COUNT
+    ATLAS_BREAKING1 = 240,
+    ATLAS_BREAKING2,
+    ATLAS_BREAKING3,
+    ATLAS_BREAKING4,
+    ATLAS_BREAKING5,
+    ATLAS_BREAKING6,
+    ATLAS_BREAKING7,
+    ATLAS_BREAKING8,
+    ATLAS_BREAKING9,
+    ATLAS_BREAKING10,
+    ATLAS_COUNT,
 } AtlasTexture;
 
 // Structure pour définir les textures de chaque face d'un bloc
