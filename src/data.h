@@ -6,7 +6,7 @@
 
 #define CHUNK_SIZE 16
 #define WORLD_HEIGHT 128
-#define RENDER_DISTANCE 2
+#define RENDER_DISTANCE 4
 
 #define WINDOWS_WIDTH 800
 #define WINDOWS_HEIGHT 600
@@ -69,14 +69,34 @@ typedef struct __attribute__((packed)) ChunkData
     BlockData blocks[16][128][16];
 } ChunkData;
 
+typedef struct ChunkRenderData {
+    unsigned int vao; // using rlgl / raylib Mesh under the hood
+    unsigned int vbo;
+    unsigned int ibo;
+    int indexCount;
+    int vertexCount;
+    void *cpuVertices;
+    void *cpuIndices;
+    int needsRemesh;
+    int meshing;
+    int meshReady;
+    float aabbMin[3];
+    float aabbMax[3];
+    void *user; // reserved
+    int hasMesh;
+    Mesh mesh;
+} ChunkRenderData;
+
 typedef struct {
     int x;
     int z;
     ChunkData data;
+    ChunkRenderData render;
 } Chunk;
 
 BlockData createBlock(BlockType type);
 void generateChunk(Chunk *chunk, int chunkX, int chunkZ);
-void DrawChunks(Chunk* chunks, Vector3 direction, Vector3 playerPos);
+BlockData getBlockAt(Chunk *chunks, int worldX, int worldY, int worldZ);
+int isBlockExposed(Chunk *chunks, int x, int y, int z);
 
 #endif

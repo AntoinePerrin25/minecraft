@@ -2,6 +2,7 @@
 
 #include "data.h"
 #include "atlas.h"
+#include "mesh.h"
 
 #include "raylib.h"
 #include "raymath.h"
@@ -44,14 +45,17 @@ int main(void) {
     };
 
     // Initialisation des chunks
-    Chunk* chunks = malloc((2*RENDER_DISTANCE+1)*(2*RENDER_DISTANCE+1) * sizeof(Chunk));
+    int totalChunks = (2*RENDER_DISTANCE+1)*(2*RENDER_DISTANCE+1);
+    Chunk* chunks = malloc(totalChunks * sizeof(Chunk));
     for (int x = -RENDER_DISTANCE; x <= RENDER_DISTANCE; x++) {
         for (int z = -RENDER_DISTANCE; z <= RENDER_DISTANCE; z++) {
             int index = (x + RENDER_DISTANCE) * (2*RENDER_DISTANCE + 1) + (z + RENDER_DISTANCE);
-            // Initialiser les pointeurs du Model à NULL pour éviter les crashs
             generateChunk(&chunks[index], x, z);
         }
-    }   
+    }
+
+    // Initialiser le système de mesh (workers + queues)
+    InitMeshSystem(chunks, totalChunks, blockAtlas);
 
     // Boucle principale
     while (!WindowShouldClose())
@@ -112,6 +116,9 @@ int main(void) {
             player.position.z + direction.z
         };
 
+        // Poll mesh uploads (main thread uploads ready meshes to GPU)
+        PollMeshUploads();
+
         // Rendu
         BeginDrawing();
             ClearBackground(SKYBLUE);
@@ -122,7 +129,10 @@ int main(void) {
             DrawLine3D((Vector3){0,0,0}, (Vector3){10,0,0}, RED);
             DrawLine3D((Vector3){0,0,0}, (Vector3){0,10,0}, GREEN);
             DrawLine3D((Vector3){0,0,0}, (Vector3){0,0,10}, BLUE);
-            
+
+            // Draw chunk meshes
+            DrawChunks(chunks, camera, player.position);
+
             EndMode3D();
 
             // UI Player
@@ -144,6 +154,8 @@ int main(void) {
     UnloadTexture(blockAtlas);
     
     // Libérer le tableau de chunks
+    // Shutdown mesh system and free resources
+    ShutdownMeshSystem();
     free(chunks);
 
     CloseWindow();
