@@ -1,5 +1,6 @@
 #include "data.h"
 #include "atlas.h"
+#include "perlin.h"
 #include "raymath.h"
 #include "rlgl.h"
 #include <stdio.h>
@@ -9,9 +10,18 @@
 
 // Variable globale pour le nombre total de chunks
 static int g_totalChunks = 0;
+static PerlinNoise* g_terrain_noise = NULL;
+static PerlinNoise* g_detail_noise = NULL;
 
 void setGlobalChunkCount(int count) {
     g_totalChunks = count;
+}
+
+void initGenerators(uint64_t seed) {
+    if (g_terrain_noise) perlin_free(g_terrain_noise);
+    if (g_detail_noise) perlin_free(g_detail_noise);
+    g_terrain_noise = perlin_init(seed);
+    g_detail_noise = perlin_init(seed ^ 0xdeadbeef);
 }
 
 typedef struct {
@@ -82,37 +92,52 @@ BlockData createBlock(BlockType type)
     return blockData;
 }
 
-void generateChunk(Chunk *chunk, int chunkX, int chunkZ)
-{
+void generateChunk(Chunk *chunk, int chunkX, int chunkZ) {
     chunk->x = chunkX;
     chunk->z = chunkZ;
-    // Pour l'instant, générons un terrain plat simple
-    for (int x = 0; x < 16; x++)
-    {
-        for (int z = 0; z < 16; z++)
-        {
-            for (int y = 0; y < 128; y++)
-            {
-                if (y > 64)
-                {
-                    chunk->data.blocks[x][y][z] = createBlock(BLOCK_AIR);
+    
+    if (!g_terrain_noise) return;
+    
+    // Coordonnées monde du chunk (en blocs)
+    int worldXBase = chunkX << 4;
+    int worldZBase = chunkZ << 4;
+    
+    // Génération avec 2 octaves pour variation rapide + detail
+    for (int lx = 0; lx < 16; lx++) {
+        for (int lz = 0; lz < 16; lz++) {
+            int wx = worldXBase + lx;
+            int wz = worldZBase + lz;
+            
+            // Bruit de base pour la hauteur (échelle large)
+            float terrain = perlin_octave(g_terrain_noise, wx * 0.01f, 0, wz * 0.01f, 3, 0.5f);
+            
+            // Bruit de détail pour variation locale (plus petite échelle)
+            float detail = perlin_noise3d(g_detail_noise, wx * 0.05f, 0, wz * 0.05f);
+            
+            // Combiner: 80% terrain, 20% detail
+            float height_factor = terrain * 0.8f + detail * 0.2f;
+            
+            // Convertir en hauteur de terrain (40-80 blocs)
+            int max_height = 40 + (int)((height_factor + 1.0f) * 20.0f);
+            max_height = max_height < 5 ? 5 : (max_height > 100 ? 100 : max_height);
+            
+            // Remplir colonne verticale
+            for (int y = 0; y < WORLD_HEIGHT; y++) {
+                BlockData block;
+                
+                if (y < 4) {
+                    block = createBlock(BLOCK_BEDROCK);
+                } else if (y < max_height - 3) {
+                    block = createBlock(BLOCK_STONE);
+                } else if (y < max_height - 1) {
+                    block = createBlock(BLOCK_DIRT);
+                } else if (y == max_height - 1) {
+                    block = createBlock(BLOCK_GRASS);
+                } else {
+                    block = createBlock(BLOCK_AIR);
                 }
-                else if (y == 64)
-                {
-                    chunk->data.blocks[x][y][z] = createBlock(BLOCK_GRASS);
-                }
-                else if (y >= 60)
-                {
-                    chunk->data.blocks[x][y][z] = createBlock(BLOCK_DIRT);
-                }
-                else if (y >= 4)
-                {
-                    chunk->data.blocks[x][y][z] = createBlock(BLOCK_STONE);
-                }
-                else
-                {
-                    chunk->data.blocks[x][y][z] = createBlock(BLOCK_BEDROCK);
-                }
+                
+                chunk->data.blocks[lx][y][lz] = block;
             }
         }
     }

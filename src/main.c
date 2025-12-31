@@ -59,6 +59,9 @@ int main(void) {
     // Définir le nombre total de chunks pour getBlockAt()
     setGlobalChunkCount(maxChunks);
     
+    // Initialiser les générateurs Perlin noise
+    initGenerators(WORLD_SEED);
+    
     // Initialiser le système de mesh (workers + queues)
     InitMeshSystem(chunks, maxChunks, blockAtlas);
     

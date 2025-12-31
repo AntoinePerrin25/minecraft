@@ -1,5 +1,5 @@
 CC ?= gcc
-SRC = src/main.c src/data.c src/atlas.c src/mesh.c
+SRC = src/main.c src/data.c src/atlas.c src/mesh.c src/perlin.c
 OUT = game
 
 PKG_CFLAGS := $(shell pkg-config --cflags raylib 2>/dev/null)

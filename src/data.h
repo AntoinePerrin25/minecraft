@@ -1,6 +1,7 @@
 #ifndef DATA_H
 #define DATA_H
 #include "raylib.h"
+#include "perlin.h"
 #include <stdint.h>
 
 
@@ -11,6 +12,8 @@
 
 #define WINDOWS_WIDTH 800
 #define WINDOWS_HEIGHT 600
+
+#define WORLD_SEED 12345
 
 
 typedef struct Vector2Int {
@@ -98,6 +101,7 @@ typedef struct {
 } Chunk;
 
 BlockData createBlock(BlockType type);
+void initGenerators(uint64_t seed);
 void generateChunk(Chunk *chunk, int chunkX, int chunkZ);
 BlockData getBlockAt(Chunk *chunks, int worldX, int worldY, int worldZ);
 int isBlockExposed(Chunk *chunks, int x, int y, int z);
