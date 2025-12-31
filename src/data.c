@@ -7,6 +7,13 @@
 #include <math.h>
 #include <string.h>
 
+// Variable globale pour le nombre total de chunks
+static int g_totalChunks = 0;
+
+void setGlobalChunkCount(int count) {
+    g_totalChunks = count;
+}
+
 typedef struct {
     Vector3 normal;     // Normale de la face (vers l'extérieur)
     int offset[3];      // Décalage pour le voisin
@@ -145,10 +152,10 @@ BlockData getBlockAt(Chunk *chunks, int worldX, int worldY, int worldZ)
         return createBlock(BLOCK_AIR);
     }
 
-    // Trouver le chunk correspondant
-    for (int i = 0; i < (2 * RENDER_DISTANCE + 1) * (2 * RENDER_DISTANCE + 1); i++)
+    // Trouver le chunk correspondant en parcourant tous les chunks actifs
+    for (int i = 0; i < g_totalChunks; i++)
     {
-        if (chunks[i].x == chunkX && chunks[i].z == chunkZ)
+        if (chunks[i].active && chunks[i].x == chunkX && chunks[i].z == chunkZ)
         {
             return chunks[i].data.blocks[localX][worldY][localZ];
         }

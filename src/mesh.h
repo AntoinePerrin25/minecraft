@@ -9,5 +9,6 @@ void ShutdownMeshSystem(void);
 void ScheduleChunkRemesh(int chunkIndex, int priority);
 void PollMeshUploads(void);
 void DrawChunks(Chunk* chunks, Camera3D camera, Vector3 playerPos);
+void UnloadChunkMesh(int chunkIndex);
 
 #endif // MESH_H

@@ -44,18 +44,26 @@ int main(void) {
         .pitch = 0.0f
     };
 
-    // Initialisation des chunks
-    int totalChunks = (2*RENDER_DISTANCE+1)*(2*RENDER_DISTANCE+1);
-    Chunk* chunks = malloc(totalChunks * sizeof(Chunk));
-    for (int x = -RENDER_DISTANCE; x <= RENDER_DISTANCE; x++) {
-        for (int z = -RENDER_DISTANCE; z <= RENDER_DISTANCE; z++) {
-            int index = (x + RENDER_DISTANCE) * (2*RENDER_DISTANCE + 1) + (z + RENDER_DISTANCE);
-            generateChunk(&chunks[index], x, z);
-        }
+    // Initialisation d'un pool de chunks
+    int maxChunks = (2*CHUNK_LOAD_DISTANCE+1)*(2*CHUNK_LOAD_DISTANCE+1);
+    Chunk* chunks = malloc(maxChunks * sizeof(Chunk));
+    
+    // Initialiser tous les chunks comme inactifs
+    for (int i = 0; i < maxChunks; i++) {
+        chunks[i].active = 0;
+        chunks[i].loaded = 0;
+        chunks[i].render.hasMesh = 0;
+        chunks[i].render.meshReady = 0;
     }
 
+    // Définir le nombre total de chunks pour getBlockAt()
+    setGlobalChunkCount(maxChunks);
+    
     // Initialiser le système de mesh (workers + queues)
-    InitMeshSystem(chunks, totalChunks, blockAtlas);
+    InitMeshSystem(chunks, maxChunks, blockAtlas);
+    
+    // Variables pour le chargement dynamique
+    Vector2Int lastPlayerChunk = {-9999, -9999}; // Valeur invalide pour forcer le premier chargement
 
     // Boucle principale
     while (!WindowShouldClose())
@@ -115,6 +123,63 @@ int main(void) {
             player.position.y + direction.y,
             player.position.z + direction.z
         };
+
+        // Gestion du chargement/déchargement de chunks
+        Vector2Int currentPlayerChunk = {
+            (int)floorf(player.position.x / CHUNK_SIZE),
+            (int)floorf(player.position.z / CHUNK_SIZE)
+        };
+        
+        // Vérifier si le joueur a changé de chunk
+        if (currentPlayerChunk.x != lastPlayerChunk.x || currentPlayerChunk.z != lastPlayerChunk.z) {
+            // Marquer les chunks qui doivent être déchargés
+            for (int i = 0; i < maxChunks; i++) {
+                if (!chunks[i].active) continue;
+                
+                int dx = chunks[i].x - currentPlayerChunk.x;
+                int dz = chunks[i].z - currentPlayerChunk.z;
+                
+                // Si le chunk est trop loin, le décharger
+                if (abs(dx) > CHUNK_LOAD_DISTANCE || abs(dz) > CHUNK_LOAD_DISTANCE) {
+                    UnloadChunkMesh(i);
+                    chunks[i].active = 0;
+                    chunks[i].loaded = 0;
+                }
+            }
+            
+            // Charger les nouveaux chunks autour du joueur
+            for (int x = -CHUNK_LOAD_DISTANCE; x <= CHUNK_LOAD_DISTANCE; x++) {
+                for (int z = -CHUNK_LOAD_DISTANCE; z <= CHUNK_LOAD_DISTANCE; z++) {
+                    int chunkX = currentPlayerChunk.x + x;
+                    int chunkZ = currentPlayerChunk.z + z;
+                    
+                    // Vérifier si ce chunk existe déjà
+                    int found = 0;
+                    for (int i = 0; i < maxChunks; i++) {
+                        if (chunks[i].active && chunks[i].x == chunkX && chunks[i].z == chunkZ) {
+                            found = 1;
+                            break;
+                        }
+                    }
+                    
+                    // Si le chunk n'existe pas, le créer
+                    if (!found) {
+                        // Trouver un slot libre
+                        for (int i = 0; i < maxChunks; i++) {
+                            if (!chunks[i].active) {
+                                generateChunk(&chunks[i], chunkX, chunkZ);
+                                chunks[i].active = 1;
+                                chunks[i].loaded = 1;
+                                ScheduleChunkRemesh(i, 0);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            lastPlayerChunk = currentPlayerChunk;
+        }
 
         // Poll mesh uploads (main thread uploads ready meshes to GPU)
         PollMeshUploads();

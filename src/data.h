@@ -7,6 +7,7 @@
 #define CHUNK_SIZE 16
 #define WORLD_HEIGHT 128
 #define RENDER_DISTANCE 4
+#define CHUNK_LOAD_DISTANCE 3
 
 #define WINDOWS_WIDTH 800
 #define WINDOWS_HEIGHT 600
@@ -92,11 +93,14 @@ typedef struct {
     int z;
     ChunkData data;
     ChunkRenderData render;
+    int loaded; // 1 if chunk is loaded, 0 otherwise
+    int active; // 1 if chunk is in use, 0 if available for reuse
 } Chunk;
 
 BlockData createBlock(BlockType type);
 void generateChunk(Chunk *chunk, int chunkX, int chunkZ);
 BlockData getBlockAt(Chunk *chunks, int worldX, int worldY, int worldZ);
 int isBlockExposed(Chunk *chunks, int x, int y, int z);
+void setGlobalChunkCount(int count);
 
 #endif

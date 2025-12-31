@@ -550,6 +550,7 @@ static int chunk_in_view(ChunkRenderData *r, Camera3D camera, Vector3 playerPos)
 void DrawChunks(Chunk* chunks, Camera3D camera, Vector3 playerPos) {
     int total = g_totalChunks;
     for (int i = 0; i < total; i++) {
+        if (!chunks[i].active) continue; // Skip inactive chunks
         ChunkRenderData *r = &chunks[i].render;
         if (!r->meshReady) continue;
         if (r->indexCount == 0) continue;
@@ -560,4 +561,18 @@ void DrawChunks(Chunk* chunks, Camera3D camera, Vector3 playerPos) {
             DrawMesh(r->mesh, g_material, transform);
         }
     }
+}
+
+void UnloadChunkMesh(int chunkIndex) {
+    if (chunkIndex < 0 || chunkIndex >= g_totalChunks) return;
+    ChunkRenderData *rd = &g_chunks[chunkIndex].render;
+    if (rd->hasMesh) {
+        UnloadMesh(rd->mesh);
+        rd->hasMesh = 0;
+    }
+    rd->meshReady = 0;
+    rd->indexCount = 0;
+    rd->vertexCount = 0;
+    rd->needsRemesh = 0;
+    rd->meshing = 0;
 }
