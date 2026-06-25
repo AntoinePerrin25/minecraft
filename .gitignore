@@ -4,3 +4,6 @@ assets
 *.py
 .vscode
 *.old
+nob
+game
+.DS_Store

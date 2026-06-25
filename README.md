@@ -16,31 +16,57 @@ This project is a simple Minecraft-like game written in C using the Raylib libra
 - Raylib library
 - A C compiler (e.g., cc)
 
-### Building
+### Building (cross-platform)
 
-1. Clone the repository:
-    ```sh
-    git clone https://github.com/yourusername/Minecraft.git
-    cd Minecraft
-    ```
+This repo now includes a `Makefile` and small helper scripts to build on macOS and Windows (MSYS2/MinGW).
 
-2. Build the project:
-    ```sh
-    gcc -o client src/main.c -lraylib -pthread -lm -ldl
-    gcc -o server src/server.c -pthread -lm -ldl
-    ```
+macOS (Homebrew):
 
-### Running
+1. Install prerequisites if needed:
 
-1. Start the server:
-    ```sh
-    ./build/server.exe
-    ```
+```sh
+brew install raylib pkg-config
+```
 
-2. Start the client:
-    ```sh
-    ./build/game.exe
-    ```
+2. Build:
+
+```sh
+./build.sh
+# or
+make
+```
+
+The resulting binary will be `./game` (run with `./game`).
+
+Windows (MSYS2 / MinGW):
+
+1. Install MSYS2 from https://www.msys2.org and open the MinGW64 shell.
+
+2. Install toolchain and raylib:
+
+```sh
+pacman -Syu
+pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-raylib mingw-w64-x86_64-pkg-config
+```
+
+3. Build inside the MinGW64 shell:
+
+```sh
+make
+# or from Windows cmd if configured: build_windows.bat
+```
+
+The resulting binary will be `game.exe`.
+
+Notes:
+- The `Makefile` prefers `pkg-config` to discover raylib flags. If `pkg-config` is not available it falls back to Homebrew paths on macOS or `./lib` on Windows (legacy behaviour).
+- If you previously used the custom `nob` builder (see `nob.c`), it linked against a raylib in `./lib` and added Windows libraries (`-lopengl32 -lgdi32 -lwinmm -lws2_32`). The new `Makefile` handles these cases when `pkg-config` is unavailable.
+
+If you want, I can also:
+
+- Add a `target` in the `Makefile` for a `server` binary (if `src/server.c` is present).
+- Add a VSCode `tasks.json` to build from the editor.
+
 
 ## Controls
 

@@ -1,38 +1,61 @@
 CC ?= gcc
-SRC = src/main.c src/data.c src/atlas.c src/mesh.c src/perlin.c
-OUT = game
 
-PKG_CFLAGS := $(shell pkg-config --cflags raylib 2>/dev/null)
-PKG_LIBS := $(shell pkg-config --libs raylib 2>/dev/null)
+# Use pkg-config to pull raylib include/link flags when available
+RAYLIB_CFLAGS := $(shell pkg-config --cflags raylib 2>/dev/null)
+RAYLIB_LIBS   := $(shell pkg-config --libs raylib 2>/dev/null)
 
-ifeq ($(PKG_LIBS),)
+SRCDIR = src
+INCDIR = include
+BUILDDIR = build
+
+CFLAGS = -Wall -Wextra -O2 -march=native -I$(INCDIR) $(RAYLIB_CFLAGS)
+LDFLAGS = $(RAYLIB_LIBS) -lm -pthread -ldl
+PROFILING ?= 0
+CFLAGS += -DPROFILING=$(PROFILING)
+
+ifeq ($(RAYLIB_LIBS),)
     ifeq ($(shell uname -s),Darwin)
         BREW_PREFIX := $(shell brew --prefix raylib 2>/dev/null)
         ifneq ($(BREW_PREFIX),)
             CFLAGS += -I$(BREW_PREFIX)/include
             LDFLAGS += -L$(BREW_PREFIX)/lib -lraylib -framework OpenGL -framework Cocoa -framework IOKit -framework CoreVideo
         else
-            CFLAGS += -I./include
             LDFLAGS += -L./lib -lraylib
         endif
     else
-        CFLAGS += -I./include
         LDFLAGS += -L./lib -lraylib -lopengl32 -lgdi32 -lwinmm -lws2_32
     endif
-else
-    CFLAGS += $(PKG_CFLAGS)
-    LDFLAGS += $(PKG_LIBS)
 endif
 
-CFLAGS += -Wall -Wextra -O3 -march=native -I./include
-LDFLAGS += -lm -pthread -ldl
+SOURCES = \
+	$(SRCDIR)/main.c \
+	$(SRCDIR)/data.c \
+	$(SRCDIR)/atlas.c \
+	$(SRCDIR)/mesh.c \
+	$(SRCDIR)/perlin.c
 
-all: $(OUT)
+OBJECTS = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(SOURCES))
+DEPS = $(OBJECTS:.o=.d)
 
-$(OUT): $(SRC)
-	$(CC) $(CFLAGS) $(SRC) -o $(OUT) $(LDFLAGS)
+TARGET = game
+
+all: $(TARGET)
+
+$(TARGET): $(OBJECTS)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+
+# Générer les dépendances automatiquement et compiler
+$(BUILDDIR)/%.o: $(SRCDIR)/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+
+# Inclure les fichiers de dépendances générés
+-include $(DEPS)
 
 clean:
-	rm -f $(OUT)
+	rm -rf $(BUILDDIR) $(TARGET)
 
-.PHONY: all clean
+run: $(TARGET)
+	./$(TARGET)
+
+.PHONY: all clean run

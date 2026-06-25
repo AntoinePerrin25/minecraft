@@ -87,13 +87,11 @@ static ReadyMesh *pop_ready(void) {
     return r;
 }
 
-// Basic face-culling mesher (no greedy) for simplicity and correctness.
-// It generates quads for each exposed face.
-// vertices layout per vertex: x,y,z, nx,ny,nz, u,v (8 floats)
-static ReadyMesh *mesh_chunk_improved(int chunkIndex) {
+// Simple block-by-block mesher - no greedy merging to avoid texture stretching
+// It generates quads for each exposed face of each block.
+static ReadyMesh *mesh_chunk_improved(int chunkIndex)
+{
     Chunk *chunk = &g_chunks[chunkIndex];
-    // We'll implement greedy merging for top faces (Y axis), and keep simple
-    // per-face meshing for vertical faces. This provides a large win for terrain.
     int vcap = 16384;
     int icap = 32768;
     float *positions = malloc(sizeof(float) * 3 * vcap);
@@ -109,159 +107,80 @@ static ReadyMesh *mesh_chunk_improved(int chunkIndex) {
         if (icount + (addI) > icap) { icap *= 2; indices = realloc(indices, sizeof(unsigned int)*icap); } \
     } while(0)
 
-    // Greedy on top faces (+Y)
-    for (int y = 0; y < WORLD_HEIGHT; y++) {
-        // build mask for this y where top face is exposed (block at y and above is air)
-        int mask[CHUNK_SIZE][CHUNK_SIZE];
-        int texmap[CHUNK_SIZE][CHUNK_SIZE];
-        int any = 0;
-        for (int x = 0; x < CHUNK_SIZE; x++) {
-            for (int z = 0; z < CHUNK_SIZE; z++) {
+    // Simple block-by-block for all faces
+    for (int x = 0; x < CHUNK_SIZE; x++)
+    {
+        for (int y = 0; y < WORLD_HEIGHT; y++)
+        {
+            for (int z = 0; z < CHUNK_SIZE; z++)
+            {
                 BlockData b = chunk->data.blocks[x][y][z];
-                BlockData above = getBlockAt(g_chunks, (chunk->x<<4)+x, y+1, (chunk->z<<4)+z);
-                if (b.visible && b.Type != BLOCK_AIR && (!above.visible || above.Type == BLOCK_AIR)) {
-                    mask[x][z] = 1;
-                    texmap[x][z] = GetBlockFaceTexture(b.Type, 2); // top face
-                    any = 1;
-                } else {
-                    mask[x][z] = 0;
+                if (!b.visible || b.Type == BLOCK_AIR) continue;
+                int worldX = (chunk->x << 4) + x;
+                int worldZ = (chunk->z << 4) + z;
+
+                // +Y (top face)
+                BlockData above = getBlockAt(g_chunks, worldX, y+1, worldZ);
+                if (above.Type == BLOCK_AIR || !above.visible) {
+                    ENSURE_CAP(4,6);
+                    float px = x + (chunk->x<<4);
+                    float py = y + 1;
+                    float pz = z + (chunk->z<<4);
+                    Rectangle uv = GetTextureRectFromAtlas(GetBlockFaceTexture(b.Type, 2));
+                    // v0
+                    positions[vcount*3 + 0] = px+1; positions[vcount*3 + 1] = py; positions[vcount*3 + 2] = pz;
+                    normals[vcount*3 + 0] = 0; normals[vcount*3 + 1] = 1; normals[vcount*3 + 2] = 0;
+                    texcoords[vcount*2 + 0] = uv.x; texcoords[vcount*2 + 1] = uv.y + uv.height;
+                    // v1
+                    positions[vcount*3 + 3] = px+1; positions[vcount*3 + 4] = py; positions[vcount*3 + 5] = pz+1;
+                    normals[vcount*3 + 3] = 0; normals[vcount*3 + 4] = 1; normals[vcount*3 + 5] = 0;
+                    texcoords[vcount*2 + 2] = uv.x; texcoords[vcount*2 + 3] = uv.y;
+                    // v2
+                    positions[vcount*3 + 6] = px; positions[vcount*3 + 7] = py; positions[vcount*3 + 8] = pz+1;
+                    normals[vcount*3 + 6] = 0; normals[vcount*3 + 7] = 1; normals[vcount*3 + 8] = 0;
+                    texcoords[vcount*2 + 4] = uv.x + uv.width; texcoords[vcount*2 + 5] = uv.y;
+                    // v3
+                    positions[vcount*3 + 9] = px; positions[vcount*3 + 10] = py; positions[vcount*3 + 11] = pz;
+                    normals[vcount*3 + 9] = 0; normals[vcount*3 + 10] = 1; normals[vcount*3 + 11] = 0;
+                    texcoords[vcount*2 + 6] = uv.x + uv.width; texcoords[vcount*2 + 7] = uv.y + uv.height;
+                    indices[icount++] = vcount + 0; indices[icount++] = vcount + 2; indices[icount++] = vcount + 1;
+                    indices[icount++] = vcount + 0; indices[icount++] = vcount + 3; indices[icount++] = vcount + 2;
+                    vcount += 4;
                 }
-            }
-        }
-        if (!any) continue;
-        // Greedy merge rectangles in mask
-        for (int z0 = 0; z0 < CHUNK_SIZE; z0++) {
-            for (int x0 = 0; x0 < CHUNK_SIZE; ) {
-                if (!mask[x0][z0]) { x0++; continue; }
-                int tex = texmap[x0][z0];
-                int w = 1;
-                while (x0 + w < CHUNK_SIZE && mask[x0+w][z0] && texmap[x0+w][z0] == tex) w++;
-                int h = 1;
-                int ok = 1;
-                while (z0 + h < CHUNK_SIZE && ok) {
-                    for (int xi = 0; xi < w; xi++) {
-                        if (!mask[x0+xi][z0+h] || texmap[x0+xi][z0+h] != tex) { ok = 0; break; }
-                    }
-                    if (ok) h++; else break;
+
+                // -Y (bottom face)
+                BlockData below = getBlockAt(g_chunks, worldX, y-1, worldZ);
+                if (below.Type == BLOCK_AIR || !below.visible) {
+                    ENSURE_CAP(4,6);
+                    float px = x + (chunk->x<<4);
+                    float py = y;
+                    float pz = z + (chunk->z<<4);
+                    Rectangle uv = GetTextureRectFromAtlas(GetBlockFaceTexture(b.Type, 3));
+                    // v0
+                    positions[vcount*3 + 0] = px; positions[vcount*3 + 1] = py; positions[vcount*3 + 2] = pz;
+                    normals[vcount*3 + 0] = 0; normals[vcount*3 + 1] = -1; normals[vcount*3 + 2] = 0;
+                    texcoords[vcount*2 + 0] = uv.x + uv.width; texcoords[vcount*2 + 1] = uv.y;
+                    // v1
+                    positions[vcount*3 + 3] = px; positions[vcount*3 + 4] = py; positions[vcount*3 + 5] = pz+1;
+                    normals[vcount*3 + 3] = 0; normals[vcount*3 + 4] = -1; normals[vcount*3 + 5] = 0;
+                    texcoords[vcount*2 + 2] = uv.x + uv.width; texcoords[vcount*2 + 3] = uv.y + uv.height;
+                    // v2
+                    positions[vcount*3 + 6] = px+1; positions[vcount*3 + 7] = py; positions[vcount*3 + 8] = pz+1;
+                    normals[vcount*3 + 6] = 0; normals[vcount*3 + 7] = -1; normals[vcount*3 + 8] = 0;
+                    texcoords[vcount*2 + 4] = uv.x; texcoords[vcount*2 + 5] = uv.y + uv.height;
+                    // v3
+                    positions[vcount*3 + 9] = px+1; positions[vcount*3 + 10] = py; positions[vcount*3 + 11] = pz;
+                    normals[vcount*3 + 9] = 0; normals[vcount*3 + 10] = -1; normals[vcount*3 + 11] = 0;
+                    texcoords[vcount*2 + 6] = uv.x; texcoords[vcount*2 + 7] = uv.y;
+                    indices[icount++] = vcount + 0; indices[icount++] = vcount + 2; indices[icount++] = vcount + 1;
+                    indices[icount++] = vcount + 0; indices[icount++] = vcount + 3; indices[icount++] = vcount + 2;
+                    vcount += 4;
                 }
-                // emit quad for rectangle covering x0..x0+w, z0..z0+h at y+1
-                float ax = (float)x0;
-                float az = (float)z0;
-                float bx = (float)(x0 + w);
-                float bz = (float)(z0 + h);
-                float yplane = (float)(y + 1);
-                // corners: (bx,yplane,az), (bx,yplane,bz), (ax,yplane,bz), (ax,yplane,az)
-                ENSURE_CAP(4,6);
-                // v0
-                positions[vcount*3 + 0] = bx + (chunk->x<<4);
-                positions[vcount*3 + 1] = yplane;
-                positions[vcount*3 + 2] = az + (chunk->z<<4);
-                normals[vcount*3 + 0] = 0; normals[vcount*3 + 1] = 1; normals[vcount*3 + 2] = 0;
-                Rectangle uv = GetTextureRectFromAtlas(tex);
-                // Utiliser une seule tuile de texture (pas de répétition)
-                texcoords[vcount*2 + 0] = uv.x; texcoords[vcount*2 + 1] = uv.y + uv.height;
-                // v1
-                positions[vcount*3 + 3] = bx + (chunk->x<<4);
-                positions[vcount*3 + 4] = yplane;
-                positions[vcount*3 + 5] = bz + (chunk->z<<4);
-                normals[vcount*3 + 3] = 0; normals[vcount*3 + 4] = 1; normals[vcount*3 + 5] = 0;
-                texcoords[vcount*2 + 2] = uv.x; texcoords[vcount*2 + 3] = uv.y;
-                // v2
-                positions[vcount*3 + 6] = ax + (chunk->x<<4);
-                positions[vcount*3 + 7] = yplane;
-                positions[vcount*3 + 8] = bz + (chunk->z<<4);
-                normals[vcount*3 + 6] = 0; normals[vcount*3 + 7] = 1; normals[vcount*3 + 8] = 0;
-                texcoords[vcount*2 + 4] = uv.x + uv.width; texcoords[vcount*2 + 5] = uv.y;
-                // v3
-                positions[vcount*3 + 9] = ax + (chunk->x<<4);
-                positions[vcount*3 + 10] = yplane;
-                positions[vcount*3 + 11] = az + (chunk->z<<4);
-                normals[vcount*3 + 9] = 0; normals[vcount*3 + 10] = 1; normals[vcount*3 + 11] = 0;
-                texcoords[vcount*2 + 6] = uv.x; texcoords[vcount*2 + 7] = uv.y + uv.height;
-                indices[icount++] = vcount + 0; indices[icount++] = vcount + 2; indices[icount++] = vcount + 1;
-                indices[icount++] = vcount + 0; indices[icount++] = vcount + 3; indices[icount++] = vcount + 2;
-                vcount += 4;
-                // clear mask
-                for (int zz = 0; zz < h; zz++) for (int xx = 0; xx < w; xx++) mask[x0+xx][z0+zz] = 0;
-                x0 += w;
             }
         }
     }
 
-    // Greedy on bottom faces (-Y)
-    for (int y = 0; y < WORLD_HEIGHT; y++) {
-        int mask[CHUNK_SIZE][CHUNK_SIZE];
-        int texmap[CHUNK_SIZE][CHUNK_SIZE];
-        int any = 0;
-        for (int x = 0; x < CHUNK_SIZE; x++) {
-            for (int z = 0; z < CHUNK_SIZE; z++) {
-                BlockData b = chunk->data.blocks[x][y][z];
-                BlockData below = getBlockAt(g_chunks, (chunk->x<<4)+x, y-1, (chunk->z<<4)+z);
-                if (b.visible && b.Type != BLOCK_AIR && (!below.visible || below.Type == BLOCK_AIR)) {
-                    mask[x][z] = 1;
-                    texmap[x][z] = GetBlockFaceTexture(b.Type, 3); // bottom face
-                    any = 1;
-                } else {
-                    mask[x][z] = 0;
-                }
-            }
-        }
-        if (!any) continue;
-        for (int z0 = 0; z0 < CHUNK_SIZE; z0++) {
-            for (int x0 = 0; x0 < CHUNK_SIZE; ) {
-                if (!mask[x0][z0]) { x0++; continue; }
-                int tex = texmap[x0][z0];
-                int w = 1;
-                while (x0 + w < CHUNK_SIZE && mask[x0+w][z0] && texmap[x0+w][z0] == tex) w++;
-                int h = 1;
-                int ok = 1;
-                while (z0 + h < CHUNK_SIZE && ok) {
-                    for (int xi = 0; xi < w; xi++) {
-                        if (!mask[x0+xi][z0+h] || texmap[x0+xi][z0+h] != tex) { ok = 0; break; }
-                    }
-                    if (ok) h++; else break;
-                }
-                float ax = (float)x0;
-                float az = (float)z0;
-                float bx = (float)(x0 + w);
-                float bz = (float)(z0 + h);
-                float yplane = (float)y;
-                ENSURE_CAP(4,6);
-                Rectangle uv = GetTextureRectFromAtlas(tex);
-                // v0 - ordre inversé pour face bottom (normale vers bas)
-                positions[vcount*3 + 0] = ax + (chunk->x<<4);
-                positions[vcount*3 + 1] = yplane;
-                positions[vcount*3 + 2] = az + (chunk->z<<4);
-                normals[vcount*3 + 0] = 0; normals[vcount*3 + 1] = -1; normals[vcount*3 + 2] = 0;
-                texcoords[vcount*2 + 0] = uv.x + uv.width; texcoords[vcount*2 + 1] = uv.y;
-                // v1
-                positions[vcount*3 + 3] = ax + (chunk->x<<4);
-                positions[vcount*3 + 4] = yplane;
-                positions[vcount*3 + 5] = bz + (chunk->z<<4);
-                normals[vcount*3 + 3] = 0; normals[vcount*3 + 4] = -1; normals[vcount*3 + 5] = 0;
-                texcoords[vcount*2 + 2] = uv.x + uv.width; texcoords[vcount*2 + 3] = uv.y + uv.height;
-                // v2
-                positions[vcount*3 + 6] = bx + (chunk->x<<4);
-                positions[vcount*3 + 7] = yplane;
-                positions[vcount*3 + 8] = bz + (chunk->z<<4);
-                normals[vcount*3 + 6] = 0; normals[vcount*3 + 7] = -1; normals[vcount*3 + 8] = 0;
-                texcoords[vcount*2 + 4] = uv.x; texcoords[vcount*2 + 5] = uv.y + uv.height;
-                // v3
-                positions[vcount*3 + 9] = bx + (chunk->x<<4);
-                positions[vcount*3 + 10] = yplane;
-                positions[vcount*3 + 11] = az + (chunk->z<<4);
-                normals[vcount*3 + 9] = 0; normals[vcount*3 + 10] = -1; normals[vcount*3 + 11] = 0;
-                texcoords[vcount*2 + 6] = uv.x; texcoords[vcount*2 + 7] = uv.y;
-                indices[icount++] = vcount + 0; indices[icount++] = vcount + 2; indices[icount++] = vcount + 1;
-                indices[icount++] = vcount + 0; indices[icount++] = vcount + 3; indices[icount++] = vcount + 2;
-                vcount += 4;
-                for (int zz = 0; zz < h; zz++) for (int xx = 0; xx < w; xx++) mask[x0+xx][z0+zz] = 0;
-                x0 += w;
-            }
-        }
-    }
-
-    // For vertical faces (+X, -X, +Z, -Z) use simple per-face emission
+    // For vertical faces (+X, -X, +Z, -Z) use simple per-block emission
     for (int x = 0; x < CHUNK_SIZE; x++) {
         for (int y = 0; y < WORLD_HEIGHT; y++) {
             for (int z = 0; z < CHUNK_SIZE; z++) {
@@ -443,10 +362,6 @@ void InitMeshSystem(Chunk* chunks, int totalChunks, Texture2D atlas) {
     }
     // start worker
     pthread_create(&workerThread, NULL, worker_loop, NULL);
-    // schedule initial remesh for all chunks
-    for (int i = 0; i < totalChunks; i++) {
-        ScheduleChunkRemesh(i, 0);
-    }
 }
 
 void ShutdownMeshSystem(void) {
@@ -476,10 +391,23 @@ void ShutdownMeshSystem(void) {
     UnloadMaterial(g_material);
 }
 
+static void update_chunk_aabb(Chunk *chunk) {
+    float cx = (float)(chunk->x << 4);
+    float cz = (float)(chunk->z << 4);
+    ChunkRenderData *r = &chunk->render;
+    r->aabbMin[0] = cx;
+    r->aabbMin[1] = 0.0f;
+    r->aabbMin[2] = cz;
+    r->aabbMax[0] = cx + CHUNK_SIZE;
+    r->aabbMax[1] = (float)WORLD_HEIGHT;
+    r->aabbMax[2] = cz + CHUNK_SIZE;
+}
+
 void ScheduleChunkRemesh(int chunkIndex, int priority) {
     if (chunkIndex < 0 || chunkIndex >= g_totalChunks) return;
     ChunkRenderData *r = &g_chunks[chunkIndex].render;
     if (r->meshing) return; // already in progress
+    update_chunk_aabb(&g_chunks[chunkIndex]);
     r->needsRemesh = 1;
     push_job(chunkIndex, priority);
 }
@@ -519,6 +447,7 @@ void PollMeshUploads(void) {
             rd->indexCount = r->indexCount;
             rd->vertexCount = r->vertexCount;
             rd->meshReady = 1;
+            rd->meshing = 0;
 
             // free r struct but NOT the arrays (now referenced by rd->mesh)
             free(r->indices);

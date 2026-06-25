@@ -19,7 +19,7 @@
 int main(void) {
     // Initialisation de la fenêtre
     InitWindow(WINDOWS_WIDTH, WINDOWS_HEIGHT, "Minecraft en C");
-    SetTargetFPS(120);
+    SetTargetFPS(60);
     DisableCursor(); // Cacher le curseur pour la caméra FPS
 
     // Charger l'atlas de textures
@@ -35,7 +35,7 @@ int main(void) {
     camera.target = (Vector3){ 0.0f, 65.0f, 1.0f };
     camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
     camera.fovy = 70.0f;
-    camera.projection = CAMERA_PERSPECTIVE;
+    camera.projection = CAMERA_ORTHOGRAPHIC;
     
     // Initialisation du joueur
     Player player = {
@@ -170,6 +170,7 @@ int main(void) {
                         // Trouver un slot libre
                         for (int i = 0; i < maxChunks; i++) {
                             if (!chunks[i].active) {
+                                UnloadChunkMesh(i);
                                 generateChunk(&chunks[i], chunkX, chunkZ);
                                 chunks[i].active = 1;
                                 chunks[i].loaded = 1;
