@@ -26,17 +26,16 @@ void generateChunk(Chunk *chunk, int chunkX, int chunkZ)
 
     if (!g_terrain_noise) return;
 
-    int worldXBase = chunkX << 4;
-    int worldZBase = chunkZ << 4;
+    const int worldXBase = chunkX << 4;
+    const int worldZBase = chunkZ << 4;
 
     for (int lx = 0; lx < CHUNK_SIZE; lx++) {
         for (int lz = 0; lz < CHUNK_SIZE; lz++) {
-            int wx = worldXBase + lx;
-            int wz = worldZBase + lz;
-
-            float terrain = perlin_octave(g_terrain_noise, wx * 0.01f, 0, wz * 0.01f, 3, 0.5f);
-            float detail = perlin_noise3d(g_detail_noise, wx * 0.05f, 0, wz * 0.05f);
-            float height_factor = terrain * 0.8f + detail * 0.2f;
+            const int wx = worldXBase + lx;
+            const int wz = worldZBase + lz;
+            const float terrain = perlin_octave(g_terrain_noise, wx * 0.01f, 0, wz * 0.01f, 3, 0.5f);
+            const float detail = perlin_noise3d(g_detail_noise, wx * 0.05f, 0, wz * 0.05f);
+            const float height_factor = terrain * 0.8f + detail * 0.2f;
 
             int max_height = 40 + (int)((height_factor + 1.0f) * 20.0f);
             max_height = max_height < 5 ? 5 : (max_height > 100 ? 100 : max_height);
@@ -79,11 +78,11 @@ BlockData getBlockAt(Chunk *chunks, int worldX, int worldY, int worldZ)
         return createBlock(BLOCK_AIR);
     }
 
-    int chunkX = (worldX >= 0) ? (worldX >> 4) : ((worldX + 1) / 16 - 1);
-    int chunkZ = (worldZ >= 0) ? (worldZ >> 4) : ((worldZ + 1) / 16 - 1);
+    const int chunkX = (worldX >= 0) ? (worldX >> 4) : ((worldX + 1) / 16 - 1);
+    const int chunkZ = (worldZ >= 0) ? (worldZ >> 4) : ((worldZ + 1) / 16 - 1);
 
-    int localX = worldX - (chunkX * 16);
-    int localZ = worldZ - (chunkZ * 16);
+    const int localX = worldX - (chunkX * 16);
+    const int localZ = worldZ - (chunkZ * 16);
 
     if (localX < 0 || localX >= CHUNK_SIZE || localZ < 0 || localZ >= CHUNK_SIZE) {
         return createBlock(BLOCK_AIR);
@@ -100,15 +99,15 @@ BlockData getBlockAt(Chunk *chunks, int worldX, int worldY, int worldZ)
 
 int isBlockExposed(Chunk *chunks, int x, int y, int z)
 {
-    int offsets[6][3] = {
+    const int offsets[6][3] = {
         {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}
     };
 
     for (int i = 0; i < 6; i++) {
-        int nx = x + offsets[i][0];
-        int ny = y + offsets[i][1];
-        int nz = z + offsets[i][2];
-        BlockData neighbor = getBlockAt(chunks, nx, ny, nz);
+        const int nx = x + offsets[i][0];
+        const int ny = y + offsets[i][1];
+        const int nz = z + offsets[i][2];
+        const BlockData neighbor = getBlockAt(chunks, nx, ny, nz);
         if (neighbor.Type == BLOCK_AIR || neighbor.Type == BLOCK_NONE) {
             return 1;
         }

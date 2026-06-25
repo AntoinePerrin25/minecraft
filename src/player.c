@@ -68,14 +68,12 @@ void PlayerSyncCamera(const Player *player, Camera3D *camera, Vector3 *outDirect
     };
 
     camera->position = player->position;
-    camera->target = (Vector3){
-        player->position.x + direction.x,
-        player->position.y + direction.y,
-        player->position.z + direction.z
-    };
+    camera->target = Vector3Add(camera->position, direction);
 
     if (outDirection) *outDirection = direction;
 }
+
+
 
 Vector2Int PlayerChunkCoord(const Player *player)
 {
