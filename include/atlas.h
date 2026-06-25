@@ -1,15 +1,15 @@
-#ifndef ATLAS_H
-#define ATLAS_H
+#ifndef MC_ATLAS_H
+#define MC_ATLAS_H
 
+#include "block.h"
 #include "raylib.h"
 
 #define ATLAS_WIDTH 256
 #define ATLAS_HEIGHT 256
 #define BLOCK_TEXTURE_SIZE 16
-#define ATLAS_COLS 16  // 256 / 16
-#define ATLAS_ROWS 16  // 256 / 16
+#define ATLAS_COLS 16
+#define ATLAS_ROWS 16
 
-// Enum pour les textures dans l'atlas
 typedef enum {
     ATLAS_GRASS_TOP,
     ATLAS_STONE,
@@ -65,18 +65,16 @@ typedef enum {
     ATLAS_COUNT,
 } AtlasTexture;
 
-// Structure pour définir les textures de chaque face d'un bloc
 typedef struct {
-    int top;      // Face supérieure (+Y)
-    int bottom;   // Face inférieure (-Y)
-    int north;    // Face nord (-Z)
-    int south;    // Face sud (+Z)
-    int east;     // Face est (+X)
-    int west;     // Face ouest (-X)
+    int top;
+    int bottom;
+    int north;
+    int south;
+    int east;
+    int west;
 } BlockFaceTextures;
 
-// Fonctions pour gérer l'atlas
-Texture2D LoadAtlasTexture(const char* filepath);
+Texture2D LoadAtlasTexture(const char *filepath);
 Rectangle GetTextureRectFromAtlas(int atlasIndex);
 BlockFaceTextures GetBlockTextures(int blockType);
 int GetBlockFaceTexture(int blockType, int faceIndex);

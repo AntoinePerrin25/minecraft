@@ -1,6 +1,8 @@
 #include "mesh.h"
+
 #include "atlas.h"
-#include "data.h"
+#include "config.h"
+#include "world.h"
 #include "raylib.h"
 #include "raymath.h"
 #include "rlgl.h"
@@ -466,6 +468,7 @@ void PollMeshUploads(void) {
 
 // Simple AABB frustum culling using camera position + distance (cheap)
 static int chunk_in_view(ChunkRenderData *r, Camera3D camera, Vector3 playerPos) {
+    (void)camera;
     // cheap distance cull
     float cx = (r->aabbMin[0] + r->aabbMax[0]) * 0.5f;
     float cz = (r->aabbMin[2] + r->aabbMax[2]) * 0.5f;

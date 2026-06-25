@@ -1,0 +1,17 @@
+#ifndef MC_CONFIG_H
+#define MC_CONFIG_H
+
+#define CHUNK_SIZE 16
+#define WORLD_HEIGHT 128
+#define RENDER_DISTANCE 8
+#define CHUNK_LOAD_DISTANCE 8
+#define CHUNK_POOL_SIZE ((2 * CHUNK_LOAD_DISTANCE + 1) * (2 * CHUNK_LOAD_DISTANCE + 1))
+
+#define WINDOWS_WIDTH 800
+#define WINDOWS_HEIGHT 600
+
+#define WORLD_SEED 12345
+
+#define ATLAS_PATH "atlas.png"
+
+#endif

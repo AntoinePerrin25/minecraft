@@ -1,6 +1,5 @@
 CC ?= gcc
 
-# Use pkg-config to pull raylib include/link flags when available
 RAYLIB_CFLAGS := $(shell pkg-config --cflags raylib 2>/dev/null)
 RAYLIB_LIBS   := $(shell pkg-config --libs raylib 2>/dev/null)
 
@@ -27,13 +26,7 @@ ifeq ($(RAYLIB_LIBS),)
     endif
 endif
 
-SOURCES = \
-	$(SRCDIR)/main.c \
-	$(SRCDIR)/data.c \
-	$(SRCDIR)/atlas.c \
-	$(SRCDIR)/mesh.c \
-	$(SRCDIR)/perlin.c
-
+SOURCES = $(sort $(wildcard $(SRCDIR)/*.c))
 OBJECTS = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(SOURCES))
 DEPS = $(OBJECTS:.o=.d)
 
@@ -44,12 +37,10 @@ all: $(TARGET)
 $(TARGET): $(OBJECTS)
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
-# Générer les dépendances automatiquement et compiler
 $(BUILDDIR)/%.o: $(SRCDIR)/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
-# Inclure les fichiers de dépendances générés
 -include $(DEPS)
 
 clean:
@@ -58,4 +49,7 @@ clean:
 run: $(TARGET)
 	./$(TARGET)
 
-.PHONY: all clean run
+debug: CFLAGS := $(filter-out -O2 -march=native,$(CFLAGS)) -g -O0
+debug: clean $(TARGET)
+
+.PHONY: all clean run debug
