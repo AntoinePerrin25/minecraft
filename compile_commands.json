@@ -1,7 +1,0 @@
-[
-  {
-    "directory": "/Users/antoinep/Prog/project-picker",
-    "command": "cc -Wall -Wextra -O2 -Iinclude -I/opt/homebrew/Cellar/raylib/5.5/include -mmacosx-version-min=11.0 -MMD -MP -c src/main.c -o build/main.o",
-    "file": "/Users/antoinep/Prog/project-picker/src/main.c"
-  }
-]

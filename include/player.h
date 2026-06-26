@@ -1,14 +1,14 @@
 #ifndef MC_PLAYER_H
 #define MC_PLAYER_H
 
+#include "camera_fps.h"
 #include "types.h"
 #include "raylib.h"
 
 typedef struct Player {
     Vector3 position;
     Vector3 velocity;
-    float yaw;
-    float pitch;
+    FpsLook look;
     int id;
 } Player;
 
