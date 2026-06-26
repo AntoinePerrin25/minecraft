@@ -5,10 +5,16 @@
 #include "types.h"
 #include "raylib.h"
 
+typedef enum Gamemode {
+    GAMEMODE_SPECTATOR,
+    GAMEMODE_SURVIVAL,
+} Gamemode;
+
 typedef struct Player {
     Vector3 position;
     Vector3 velocity;
     FpsLook look;
+    Gamemode mode;
     int id;
 } Player;
 

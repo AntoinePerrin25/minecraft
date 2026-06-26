@@ -12,6 +12,40 @@ void PlayerInit(Player *player)
     player->velocity = (Vector3){ 0.0f, 0.0f, 0.0f };
     FpsLookInit(&player->look);
     player->id = 0;
+    player->mode = GAMEMODE_SPECTATOR;
+}
+
+void PlayerUpdateSpectator(Player *player, FpsBasis basis, float speed)
+{
+    if (IsKeyDown(KEY_LEFT_SHIFT)) speed *= 2.5f;
+
+    if (IsKeyDown(KEY_W)) {
+        player->position = Vector3Add(player->position, Vector3Scale(basis.forward, speed));
+    }
+    if (IsKeyDown(KEY_S)) {
+        player->position = Vector3Subtract(player->position, Vector3Scale(basis.forward, speed));
+    }
+    bool a = IsKeyDown(KEY_A);
+    bool d = IsKeyDown(KEY_D);
+    if (a && d) {
+        // do nothing
+    } else if (IsKeyDown(KEY_A)) {
+        player->position.x += basis.right.x * speed;
+        player->position.z += basis.right.z * speed;
+    } else if (IsKeyDown(KEY_D)) {
+        player->position.x -= basis.right.x * speed;
+        player->position.z -= basis.right.z * speed;
+    }
+
+    bool shift = IsKeyDown(KEY_LEFT_SHIFT);
+    bool space = IsKeyDown(KEY_SPACE);
+    if (shift && space) {
+        // do nothing
+    } else if (IsKeyDown(KEY_LEFT_SHIFT)) {
+        player->position.y -= speed;
+    } else if (IsKeyDown(KEY_SPACE)) {
+        player->position.y += speed;
+    }
 }
 
 void PlayerUpdate(Player *player, float deltaTime)
@@ -23,28 +57,9 @@ void PlayerUpdate(Player *player, float deltaTime)
     FpsBasis basis = FpsLookGetBasis(&player->look);
 
     float speed = 10.0f * deltaTime;
-    if (IsKeyDown(KEY_LEFT_SHIFT)) speed *= 2.5f;
 
-    if (IsKeyDown(KEY_W)) {
-        player->position.x += basis.forward.x * speed;
-        player->position.y += basis.forward.y * speed;
-        player->position.z += basis.forward.z * speed;
-    }
-    if (IsKeyDown(KEY_S)) {
-        player->position.x -= basis.forward.x * speed;
-        player->position.y -= basis.forward.y * speed;
-        player->position.z -= basis.forward.z * speed;
-    }
-    if (IsKeyDown(KEY_A)) {
-        player->position.x += basis.right.x * speed;
-        player->position.z += basis.right.z * speed;
-    }
-    if (IsKeyDown(KEY_D)) {
-        player->position.x -= basis.right.x * speed;
-        player->position.z -= basis.right.z * speed;
-    }
-    if (IsKeyDown(KEY_SPACE)) {
-        player->position.y += speed;
+    if (player->mode == GAMEMODE_SPECTATOR) {
+        PlayerUpdateSpectator(player, basis, speed);
     }
 }
 
