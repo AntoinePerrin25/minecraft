@@ -36,7 +36,7 @@ FpsBasis FpsLookGetBasis(const FpsLook *look)
         float sign = (sp >= 0.0f) ? 1.0f : -1.0f;
         basis.forward = (Vector3){ 0.0f, sign, 0.0f };
         basis.right = (Vector3){ cy, 0.0f, -sy };
-        basis.up = (Vector3){ sy, 0.0f, cy };
+        basis.up = (Vector3){ -sign * sy, 0.0f, -sign * cy };
         return basis;
     }
 
