@@ -7,6 +7,7 @@
 
 #define MAX_WALK_SPEED 1.0f
 #define MAX_RUN_SPEED  2.5f
+#define SNEAK_SPEED_MULT  0.333333f
 #define GRAVITY        9.81f
 
 typedef enum Gamemode {

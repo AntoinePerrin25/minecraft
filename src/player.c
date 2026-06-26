@@ -43,7 +43,7 @@ void PlayerUpdateSpectator(Player *player, FpsBasis basis, float speed)
     if (shift && space) {
         // do nothing
     } else if (shift) {
-        player->position.y -= speed;
+        // Sneak, use SNEAK_SPEED_MULT to reduce speed
     } else if (space) {
         player->position.y += speed;
     }
@@ -51,11 +51,33 @@ void PlayerUpdateSpectator(Player *player, FpsBasis basis, float speed)
 
 void PlayerUpdateSurvival(Player *player, FpsBasis basis, float speed)
 {
-    return;
+    float maxSpeed = IsKeyDown(KEY_Q) ? MAX_RUN_SPEED : MAX_WALK_SPEED;
+
+    const bool isMovingForward = IsKeyDown(KEY_W);
+    const bool isMovingBackward = IsKeyDown(KEY_S);
+
+    const bool a = IsKeyDown(KEY_A);
+    const bool d = IsKeyDown(KEY_D);
+    if (a && d) {
+        // do nothing
+    } else if (a) {
+        // Accelerate left
+    } else if (d) {
+        // Accelerate right
+    }
+
+    const bool shift = IsKeyDown(KEY_LEFT_SHIFT);
+    const bool space = IsKeyDown(KEY_SPACE);
+    if (shift) {
+        player->position.y -= speed;
+    } else if (space) {
+        player->position.y += speed;
+    }
 }
 
 inline void PlayerSetGamemode(Player *player, Gamemode mode)
 {
+    player->acceleration = (Vector3){ 0.0f, 0.0f, 0.0f };
     player->mode = mode;
 }
 
