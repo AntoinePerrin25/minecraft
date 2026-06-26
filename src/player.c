@@ -8,16 +8,17 @@
 
 void PlayerInit(Player *player)
 {
-    player->position = (Vector3){ 0.0f, 66.0f, 0.0f };
-    player->velocity = (Vector3){ 0.0f, 0.0f, 0.0f };
+    player->position     = (Vector3){ 0.0f, 66.0f, 0.0f };
+    player->velocity     = (Vector3){ 0.0f, 0.0f,  0.0f };
+    player->acceleration = (Vector3){ 0.0f, 0.0f,  0.0f };
     FpsLookInit(&player->look);
-    player->id = 0;
     player->mode = GAMEMODE_SPECTATOR;
+    player->id = 0;
 }
 
 void PlayerUpdateSpectator(Player *player, FpsBasis basis, float speed)
 {
-    if (IsKeyDown(KEY_LEFT_SHIFT)) speed *= 2.5f;
+    if (IsKeyDown(KEY_Q)) speed *= 2.5f;
 
     if (IsKeyDown(KEY_W)) {
         player->position = Vector3Add(player->position, Vector3Scale(basis.forward, speed));
@@ -37,15 +38,25 @@ void PlayerUpdateSpectator(Player *player, FpsBasis basis, float speed)
         player->position.z -= basis.right.z * speed;
     }
 
-    bool shift = IsKeyDown(KEY_LEFT_SHIFT);
-    bool space = IsKeyDown(KEY_SPACE);
+    const bool shift = IsKeyDown(KEY_LEFT_SHIFT);
+    const bool space = IsKeyDown(KEY_SPACE);
     if (shift && space) {
         // do nothing
-    } else if (IsKeyDown(KEY_LEFT_SHIFT)) {
+    } else if (shift) {
         player->position.y -= speed;
-    } else if (IsKeyDown(KEY_SPACE)) {
+    } else if (space) {
         player->position.y += speed;
     }
+}
+
+void PlayerUpdateSurvival(Player *player, FpsBasis basis, float speed)
+{
+    return;
+}
+
+inline void PlayerSetGamemode(Player *player, Gamemode mode)
+{
+    player->mode = mode;
 }
 
 void PlayerUpdate(Player *player, float deltaTime)
@@ -60,6 +71,9 @@ void PlayerUpdate(Player *player, float deltaTime)
 
     if (player->mode == GAMEMODE_SPECTATOR) {
         PlayerUpdateSpectator(player, basis, speed);
+    }
+    else if (player->mode == GAMEMODE_SURVIVAL) {
+        PlayerUpdateSurvival(player, basis, speed);
     }
 }
 
